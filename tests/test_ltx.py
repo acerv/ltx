@@ -183,7 +183,7 @@ def test_error(ltx_helper):
     Test that ERROR command raises an ERROR:
     """
     ltx_helper.send(msgpack.packb(LTX_ERROR), check_echo=False)
-    ltx_helper.send(msgpack.packb(LTX_ERROR))
+    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
     ltx_helper.expect_exact(msgpack.packb("ERROR should not be received"))
 
 
@@ -290,7 +290,7 @@ def test_env_out_of_bound_error(ltx_helper):
     cmd += msgpack.packb(value)
 
     ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.send(msgpack.packb(LTX_ERROR))
+    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
     ltx_helper.expect_exact(msgpack.packb("Out of bound slot ID"))
 
 
@@ -322,7 +322,7 @@ def test_env_too_many_error(ltx_helper):
     cmd += msgpack.packb(value)
 
     ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.send(msgpack.packb(LTX_ERROR))
+    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
     ltx_helper.expect_exact(msgpack.packb(
         "Can't have more than 1024 environment variables"))
 
@@ -362,7 +362,7 @@ def test_cwd_out_of_bound_error(ltx_helper, tmpdir):
     cmd += msgpack.packb(str(tmpdir))
 
     ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.send(msgpack.packb(LTX_ERROR))
+    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
     ltx_helper.expect_exact(msgpack.packb("Out of bound slot ID"))
 
 
@@ -376,7 +376,7 @@ def test_cwd_dir_does_not_exist_error(ltx_helper):
     cmd += msgpack.packb("/this/dir/doesnt/exist")
 
     ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.send(msgpack.packb(LTX_ERROR))
+    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
     ltx_helper.expect_exact(msgpack.packb("CWD directory does not exist"))
 
 
