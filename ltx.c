@@ -239,6 +239,7 @@ static void ltx_handle_version(struct ltx_session *session)
 	mp_message_str(&msgs[1], VERSION);
 
 	ltx_send_messages(session, msgs, 2);
+	ltx_buffer_reset(session);
 }
 
 static uint64_t ltx_gettime(void)
@@ -262,6 +263,7 @@ static void ltx_handle_ping(struct ltx_session *session)
 	mp_message_uint(&msgs[1], ltx_gettime());
 
 	ltx_send_messages(session, msgs, 2);
+	ltx_buffer_reset(session);
 }
 
 static void ltx_handle_get_file(struct ltx_session *session)
