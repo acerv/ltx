@@ -108,9 +108,6 @@ struct ltx_session
 	/* application stdin buffer */
 	uint8_t stdin_buffer[READ_BUFFER_SIZE];
 
-	/* children stdout buffer */
-	uint8_t log_buffer[READ_BUFFER_SIZE];
-
 	/* msgpack messages unpacker */
 	struct mp_unpacker msg_unpacker;
 
@@ -661,7 +658,7 @@ static void ltx_handle_log(struct ltx_session *session, struct ltx_event *evt)
 	assert(evt->slot_id >= 0);
 	assert(evt->slot_id < MAX_SLOTS);
 
-	int ret = read(evt->fd, session->log_buffer, READ_BUFFER_SIZE);
+	int ret = read(evt->fd, session->stdin_buffer, READ_BUFFER_SIZE);
 	if (ret == -1) {
 		ltx_handle_error(session, "read() log", 1);
 		return;
@@ -672,12 +669,15 @@ static void ltx_handle_log(struct ltx_session *session, struct ltx_event *evt)
 		return;
 	}
 
+	/* ensure that string is null-terminated */
+	session->stdin_buffer[ret] = '\0';
+
 	struct mp_message msgs[4];
 
 	mp_message_uint(&msgs[0], LTX_LOG);
 	mp_message_uint(&msgs[1], (uint64_t) evt->slot_id);
 	mp_message_uint(&msgs[2], ltx_gettime());
-	mp_message_str(&msgs[3], session->log_buffer);
+	mp_message_str(&msgs[3], session->stdin_buffer);
 
 	ltx_send_messages(session, msgs, 4);
 	ltx_buffer_reset(session);
