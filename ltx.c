@@ -38,7 +38,7 @@
 #define ALL_SLOTS MAX_SLOTS
 
 /* maximum number of environment variables */
-#define MAX_ENVS 1024
+#define MAX_ENVS 16
 
 /* number of bytes for read(..) */
 #define READ_BUFFER_SIZE 1024
@@ -46,19 +46,19 @@
 /* maximum number char per string */
 #define MAX_STRING_LEN 4096
 
-struct ltx_buffer
+struct ltx_message
 {
 	/* type of ltx message (LTX_PING, LTX_ERROR, etc. )*/
 	uint32_t type;
 
-	/* messages which are building the ltx message */
-	struct mp_message msgs[MAX_MESSAGES];
+	/* current unpacking data position */
+	size_t curr;
 
-	/* position of the latest message */
-	size_t pos;
+	/* messages which are building the ltx message */
+	struct mp_message data[MAX_MESSAGES];
 };
 
-struct ltx_exec_env
+struct ltx_env
 {
 	/* environment key */
 	char key[MAX_STRING_LEN];
@@ -67,7 +67,7 @@ struct ltx_exec_env
 	char value[MAX_STRING_LEN];
 };
 
-struct ltx_exec_slot
+struct ltx_slot
 {
 	/* reserved if 1, 0 otherwise */
 	int reserved;
@@ -76,19 +76,19 @@ struct ltx_exec_slot
 	pid_t pid;
 
 	/* environment variables */
-	struct ltx_exec_env env[MAX_ENVS];
+	struct ltx_env env[MAX_ENVS];
 
 	/* current working directory */
 	char cwd[PATH_MAX];
 };
 
-struct ltx_executor
+struct ltx_table
 {
 	/* executions slots */
-	struct ltx_exec_slot slots[MAX_SLOTS];
+	struct ltx_slot slots[MAX_SLOTS];
 
 	/* global environment variables */
-	struct ltx_exec_env env[MAX_ENVS];
+	struct ltx_env env[MAX_ENVS];
 };
 
 struct ltx_session
@@ -112,10 +112,10 @@ struct ltx_session
 	struct mp_unpacker msg_unpacker;
 
 	/* current ltx unpacking message */
-	struct ltx_buffer ltx_buffer;
+	struct ltx_message ltx_message;
 
-	/* current ltx executor */
-	struct ltx_executor exec;
+	/* current ltx execution table */
+	struct ltx_table table;
 };
 
 enum ltx_event_type
@@ -142,24 +142,24 @@ struct ltx_event
 	int slot_id;
 };
 
-static void ltx_buffer_next(struct ltx_session *session)
+static void ltx_message_next(struct ltx_session *session)
 {
-	++(session->ltx_buffer.pos);
-	assert(session->ltx_buffer.pos < MAX_MESSAGES);
+	++(session->ltx_message.curr);
+	assert(session->ltx_message.curr < MAX_MESSAGES);
 
 	mp_unpacker_reserve(
 		&session->msg_unpacker,
-		session->ltx_buffer.msgs + session->ltx_buffer.pos);
+		session->ltx_message.data + session->ltx_message.curr);
 }
 
-static void ltx_buffer_reset(struct ltx_session *session)
+static void ltx_message_reset(struct ltx_session *session)
 {
-	session->ltx_buffer.type = LTX_NONE;
-	session->ltx_buffer.pos = 0;
+	session->ltx_message.type = LTX_NONE;
+	session->ltx_message.curr = 0;
 
 	mp_unpacker_reserve(
 		&session->msg_unpacker,
-		session->ltx_buffer.msgs);
+		session->ltx_message.data);
 }
 
 static inline void ltx_send_messages(
@@ -179,10 +179,10 @@ static void ltx_echo(struct ltx_session *session)
 {
 	ltx_send_messages(
 		session,
-		session->ltx_buffer.msgs,
-		session->ltx_buffer.pos + 1);
+		session->ltx_message.data,
+		session->ltx_message.curr + 1);
 
-	ltx_buffer_reset(session);
+	ltx_message_reset(session);
 }
 
 static void ltx_handle_error(
@@ -209,7 +209,7 @@ static void ltx_handle_error(
 	}
 
 	ltx_send_messages(session, msgs, 2);
-	ltx_buffer_reset(session);
+	ltx_message_reset(session);
 }
 
 static void ltx_read_string(
@@ -241,7 +241,7 @@ static void ltx_handle_version(struct ltx_session *session)
 	mp_message_str(&msgs[1], VERSION);
 
 	ltx_send_messages(session, msgs, 2);
-	ltx_buffer_reset(session);
+	ltx_message_reset(session);
 }
 
 static uint64_t ltx_gettime(void)
@@ -265,13 +265,13 @@ static void ltx_handle_ping(struct ltx_session *session)
 	mp_message_uint(&msgs[1], ltx_gettime());
 
 	ltx_send_messages(session, msgs, 2);
-	ltx_buffer_reset(session);
+	ltx_message_reset(session);
 }
 
 static void ltx_handle_get_file(struct ltx_session *session)
 {
 	char path[MAX_STRING_LEN];
-	ltx_read_string(session, session->ltx_buffer.msgs + 1, path);
+	ltx_read_string(session, session->ltx_message.data + 1, path);
 
 	if (path[0] == '\0') {
 		ltx_handle_error(session, "Empty given path", 0);
@@ -319,16 +319,16 @@ static void ltx_handle_get_file(struct ltx_session *session)
 	mp_message_str(&msgs[1], path);
 
 	ltx_send_messages(session, msgs, 2);
-	ltx_buffer_reset(session);
+	ltx_message_reset(session);
 }
 
 static void ltx_handle_set_file(struct ltx_session *session)
 {
 	char path[MAX_STRING_LEN];
-	ltx_read_string(session, session->ltx_buffer.msgs + 1, path);
+	ltx_read_string(session, session->ltx_message.data + 1, path);
 
 	ssize_t size;
-	void *data = mp_message_read_bin(session->ltx_buffer.msgs + 2, &size);
+	void *data = mp_message_read_bin(session->ltx_message.data + 2, &size);
 	assert(data);
 	assert(size > 0);
 
@@ -361,12 +361,12 @@ static void ltx_handle_set_file(struct ltx_session *session)
 	mp_message_str(&msgs[1], path);
 
 	ltx_send_messages(session, msgs, 2);
-	ltx_buffer_reset(session);
+	ltx_message_reset(session);
 }
 
-static int ltx_exec_env_set(
+static int ltx_env_set(
 	struct ltx_session *session,
-	struct ltx_exec_env *exec_env,
+	struct ltx_env *exec_env,
 	const char *key,
 	const char *value)
 {
@@ -374,7 +374,7 @@ static int ltx_exec_env_set(
 	assert(key);
 	assert(value);
 
-	struct ltx_exec_env *env;
+	struct ltx_env *env;
 	unsigned i = 0;
 
 	if (strlen(value) > 0) {
@@ -387,8 +387,7 @@ static int ltx_exec_env_set(
 		if (i >= MAX_ENVS) {
 			ltx_handle_error(
 				session,
-				"Can't have more than 1024 "
-				"environment variables", 0);
+				"Set too many environment variables", 0);
 			return 1;
 		}
 	} else {
@@ -412,33 +411,33 @@ static int ltx_exec_env_set(
 
 static void ltx_handle_env(struct ltx_session *session)
 {
-	uint64_t slot_id = mp_message_read_uint(session->ltx_buffer.msgs + 1);
+	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
 	if (slot_id < 0 || slot_id > MAX_SLOTS) {
 		ltx_handle_error(session, "Out of bound slot ID", 0);
 		return;
 	}
 
 	char key[MAX_STRING_LEN];
-	ltx_read_string(session, session->ltx_buffer.msgs + 2, key);
+	ltx_read_string(session, session->ltx_message.data + 2, key);
 
 	char val[MAX_STRING_LEN];
-	ltx_read_string(session, session->ltx_buffer.msgs + 3, val);
+	ltx_read_string(session, session->ltx_message.data + 3, val);
 
-	struct ltx_exec_slot *exec_slot;
+	struct ltx_slot *exec_slot;
 	int error;
 
 	if (slot_id == ALL_SLOTS) {
 		for (unsigned i = 0; i < MAX_SLOTS; i++) {
-			exec_slot = session->exec.slots + i;
-			error = ltx_exec_env_set(
+			exec_slot = session->table.slots + i;
+			error = ltx_env_set(
 				session,
 				exec_slot->env,
 				key,
 				val);
 		}
 	} else {
-		exec_slot = session->exec.slots + slot_id;
-		error = ltx_exec_env_set(
+		exec_slot = session->table.slots + slot_id;
+		error = ltx_env_set(
 			session,
 			exec_slot->env,
 			key,
@@ -451,14 +450,14 @@ static void ltx_handle_env(struct ltx_session *session)
 
 static void ltx_handle_cwd(struct ltx_session *session)
 {
-	uint64_t slot_id = mp_message_read_uint(session->ltx_buffer.msgs + 1);
+	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
 	if (slot_id < 0 || slot_id > MAX_SLOTS) {
 		ltx_handle_error(session, "Out of bound slot ID", 0);
 		return;
 	}
 
 	char path[MAX_STRING_LEN];
-	ltx_read_string(session, session->ltx_buffer.msgs + 2, path);
+	ltx_read_string(session, session->ltx_message.data + 2, path);
 
 	struct stat sb;
 	if (stat(path, &sb) || !S_ISDIR(sb.st_mode)) {
@@ -466,29 +465,29 @@ static void ltx_handle_cwd(struct ltx_session *session)
 		return;
 	}
 
-	struct ltx_exec_slot *exec_slot;
+	struct ltx_slot *exec_slot;
 
 	if (slot_id == ALL_SLOTS) {
 		for (unsigned i = 0; i < MAX_SLOTS; i++) {
-			exec_slot = session->exec.slots + i;
+			exec_slot = session->table.slots + i;
 			strcpy(exec_slot->cwd, path);
 		}
 	} else {
-		exec_slot = session->exec.slots + slot_id;
+		exec_slot = session->table.slots + slot_id;
 		strcpy(exec_slot->cwd, path);
 	}
 
 	ltx_echo(session);
 }
 
-static struct ltx_exec_slot *ltx_exec_slot_reserve(
+static struct ltx_slot *ltx_slot_reserve(
 	struct ltx_session *session,
 	const int slot_id)
 {
 	assert(slot_id >= 0);
 	assert(slot_id < MAX_SLOTS);
 
-	struct ltx_exec_slot *exec_slot = session->exec.slots + slot_id;
+	struct ltx_slot *exec_slot = session->table.slots + slot_id;
 
 	if (exec_slot->reserved) {
 		ltx_handle_error(session, "Execution slot is reserved", 0);
@@ -500,15 +499,15 @@ static struct ltx_exec_slot *ltx_exec_slot_reserve(
 	return exec_slot;
 }
 
-static void ltx_exec_slot_free(struct ltx_session *session, const int slot_id)
+static void ltx_slot_free(struct ltx_session *session, const int slot_id)
 {
 	assert(slot_id >= 0);
 	assert(slot_id < MAX_SLOTS);
 
-	struct ltx_exec_slot *exec_slot;
+	struct ltx_slot *exec_slot;
 
-	exec_slot = session->exec.slots + slot_id;
-	memset(exec_slot, 0, sizeof(struct ltx_exec_slot));
+	exec_slot = session->table.slots + slot_id;
+	memset(exec_slot, 0, sizeof(struct ltx_slot));
 
 	exec_slot->pid = -1;
 }
@@ -540,7 +539,7 @@ static int ltx_epoll_add(
 static void ltx_handle_exec(struct ltx_session *session)
 {
 	/* read execution message */
-	uint64_t slot_id = mp_message_read_uint(session->ltx_buffer.msgs + 1);
+	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
 	if (slot_id < 0 || slot_id >= MAX_SLOTS) {
 		ltx_handle_error(session, "Out of bound slot ID", 0);
 		return;
@@ -550,7 +549,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 	ltx_echo(session);
 
 	/* reserve execution slot */
-	struct ltx_exec_slot *exec_slot = ltx_exec_slot_reserve(
+	struct ltx_slot *exec_slot = ltx_slot_reserve(
 		session,
 		slot_id);
 	if (!exec_slot)
@@ -604,7 +603,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 
 	/* set global environment vars */
 	for (unsigned i = 0; i < MAX_ENVS; i++) {
-		struct ltx_exec_env env = session->exec.env[i];
+		struct ltx_env env = session->table.env[i];
 		if (!strlen(env.key))
 			continue;
 
@@ -619,7 +618,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 
 	/* set local environment vars */
 	for (unsigned i = 0; i < MAX_ENVS; i++) {
-		struct ltx_exec_env env = exec_slot->env[i];
+		struct ltx_env env = exec_slot->env[i];
 		if (!strlen(env.key))
 			continue;
 
@@ -640,7 +639,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 
 	/* execute the command */
 	char cmd[MAX_STRING_LEN];
-	ltx_read_string(session, session->ltx_buffer.msgs + 2, cmd);
+	ltx_read_string(session, session->ltx_message.data + 2, cmd);
 
 	if (execlp("sh", "sh", "-c", cmd, (char *) NULL) == -1) {
 		ltx_handle_error(session, "execlp() error", 1);
@@ -680,7 +679,7 @@ static void ltx_handle_log(struct ltx_session *session, struct ltx_event *evt)
 	mp_message_str(&msgs[3], session->stdin_buffer);
 
 	ltx_send_messages(session, msgs, 4);
-	ltx_buffer_reset(session);
+	ltx_message_reset(session);
 }
 
 static void ltx_handle_result(
@@ -701,7 +700,7 @@ static void ltx_handle_result(
 	mp_message_uint(&msgs[4], (uint64_t)ssi_status);
 
 	ltx_send_messages(session, msgs, 5);
-	ltx_buffer_reset(session);
+	ltx_message_reset(session);
 }
 
 static void ltx_send_result(struct ltx_session *session, struct ltx_event *evt)
@@ -718,13 +717,13 @@ static void ltx_send_result(struct ltx_session *session, struct ltx_event *evt)
 
 	/* iterate for all signals */
 	int sig_num = ret / sizeof(si[0]);
-	struct ltx_exec_slot *slot;
+	struct ltx_slot *slot;
 	int slot_id;
 
 	for (unsigned i = 0; i < sig_num; i++) {
 		/* search for slot_id */
 		for (slot_id = 0; slot_id < MAX_SLOTS; slot_id++) {
-			slot = session->exec.slots + slot_id;
+			slot = session->table.slots + slot_id;
 			if (si[i].ssi_pid == slot->pid)
 				break;
 		}
@@ -741,20 +740,20 @@ static void ltx_send_result(struct ltx_session *session, struct ltx_event *evt)
 			si[slot_id].ssi_code,
 			si[slot_id].ssi_status);
 
-		ltx_exec_slot_free(session, slot_id);
+		ltx_slot_free(session, slot_id);
 	}
 }
 
 static void ltx_handle_kill(struct ltx_session *session)
 {
 	/* read message */
-	uint64_t slot_id = mp_message_read_uint(session->ltx_buffer.msgs + 1);
+	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
 	if (slot_id < 0 || slot_id >= MAX_SLOTS) {
 		ltx_handle_error(session, "Out of bound slot ID", 0);
 		return;
 	}
 
-	struct ltx_exec_slot *exec_slot = session->exec.slots + slot_id;
+	struct ltx_slot *exec_slot = session->table.slots + slot_id;
 	if (exec_slot->pid == -1) {
 		ltx_handle_error(session, "No command running", 0);
 		return;
@@ -775,8 +774,8 @@ static void ltx_process_msg(struct ltx_session *session)
 	int read_next = 1;
 
 	/* handle requests composed by single message or errors */
-	if (session->ltx_buffer.type == LTX_NONE) {
-		if (mp_message_type(session->ltx_buffer.msgs) != MP_NUMERIC) {
+	if (session->ltx_message.type == LTX_NONE) {
+		if (mp_message_type(session->ltx_message.data) != MP_NUMERIC) {
 			ltx_handle_error(
 				session,
 				"Message type must be a numeric",
@@ -787,10 +786,10 @@ static void ltx_process_msg(struct ltx_session *session)
 		/* numeric types are used to store commands type.
 		 * we save received command type and wait for next messages.
 		 */
-		session->ltx_buffer.type = (uint32_t) mp_message_read_uint(
-			session->ltx_buffer.msgs);
+		session->ltx_message.type = (uint32_t) mp_message_read_uint(
+			session->ltx_message.data);
 
-		switch (session->ltx_buffer.type) {
+		switch (session->ltx_message.type) {
 		/* handle commands with single message request */
 		case LTX_VERSION:
 			ltx_handle_version(session);
@@ -834,39 +833,39 @@ static void ltx_process_msg(struct ltx_session *session)
 		}
 	} else {
 		/* handle requests composed by multiple messages */
-		switch (session->ltx_buffer.type) {
+		switch (session->ltx_message.type) {
 		case LTX_GET_FILE:
-			if (session->ltx_buffer.pos >= 1) {
+			if (session->ltx_message.curr >= 1) {
 				ltx_handle_get_file(session);
 				read_next = 0;
 			}
 			break;
 		case LTX_SET_FILE:
-			if (session->ltx_buffer.pos >= 2) {
+			if (session->ltx_message.curr >= 2) {
 				ltx_handle_set_file(session);
 				read_next = 0;
 			}
 			break;
 		case LTX_ENV:
-			if (session->ltx_buffer.pos >= 3) {
+			if (session->ltx_message.curr >= 3) {
 				ltx_handle_env(session);
 				read_next = 0;
 			}
 			break;
 		case LTX_CWD:
-			if (session->ltx_buffer.pos >= 2) {
+			if (session->ltx_message.curr >= 2) {
 				ltx_handle_cwd(session);
 				read_next = 0;
 			}
 			break;
 		case LTX_EXEC:
-			if (session->ltx_buffer.pos >= 2) {
+			if (session->ltx_message.curr >= 2) {
 				ltx_handle_exec(session);
 				read_next = 0;
 			}
 			break;
 		case LTX_KILL:
-			if (session->ltx_buffer.pos >= 1) {
+			if (session->ltx_message.curr >= 1) {
 				ltx_handle_kill(session);
 				read_next = 0;
 			}
@@ -877,7 +876,7 @@ static void ltx_process_msg(struct ltx_session *session)
 	}
 
 	if (read_next)
-		ltx_buffer_next(session);
+		ltx_message_next(session);
 }
 
 static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
@@ -915,7 +914,7 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 				session,
 				"Unsupported msgpack type",
 				0);
-			ltx_buffer_reset(session);
+			ltx_message_reset(session);
 			break;
 		default:
 			break;
@@ -949,17 +948,17 @@ struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 
 	/* reset ltx messages buffer */
 	for (unsigned i = 0; i < MAX_MESSAGES; i++)
-		mp_message_init(session->ltx_buffer.msgs + i);
+		mp_message_init(session->ltx_message.data + i);
 
-	session->ltx_buffer.type = LTX_NONE;
+	session->ltx_message.type = LTX_NONE;
 
 	/* initialize message read/write buffers */
 	mp_unpacker_init(&session->msg_unpacker);
-	mp_unpacker_reserve(&session->msg_unpacker, session->ltx_buffer.msgs);
+	mp_unpacker_reserve(&session->msg_unpacker, session->ltx_message.data);
 
 	/* initialize execution table */
 	for (unsigned i = 0; i < MAX_SLOTS; i++)
-		session->exec.slots[i].pid = -1;
+		session->table.slots[i].pid = -1;
 
 	return session;
 }
@@ -969,7 +968,7 @@ void ltx_session_destroy(struct ltx_session *session)
 	assert(session);
 
 	for (unsigned i = 0; i < MAX_MESSAGES; i++)
-		mp_message_destroy(session->ltx_buffer.msgs + i);
+		mp_message_destroy(session->ltx_message.data + i);
 
 	munmap(session, sizeof(struct ltx_session));
 }

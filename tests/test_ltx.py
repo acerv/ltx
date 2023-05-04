@@ -26,6 +26,7 @@ LTX_DATA = 0xa0
 LTX_KILL = 0xa1
 MAX_SLOTS = 128
 ALL_SLOTS = MAX_SLOTS
+MAX_ENVS = 16
 
 
 class LTXHelper:
@@ -247,7 +248,7 @@ def test_env_local(ltx_helper):
     """
     Test ENV command on single slot.
     """
-    for i in range(0, 128):
+    for i in range(0, MAX_ENVS):
         key = f"mykey{i}"
         value = f"myvalue{i}"
 
@@ -299,7 +300,7 @@ def test_env_too_many_error(ltx_helper):
     Test ENV command when saturating the number of environment variables.
     """
     # saturate the amount of env variables
-    for i in range(1024):
+    for i in range(0, MAX_ENVS):
         key = f"mykey{i}"
         value = f"myvalue{i}"
 
@@ -312,8 +313,8 @@ def test_env_too_many_error(ltx_helper):
         ltx_helper.send(cmd)
 
     # add just one more key and check for errors
-    key = f"mykey1024"
-    value = f"myvalue1024"
+    key = "mykey" + str(MAX_ENVS + 1)
+    value = "myvalue" + str(MAX_ENVS + 1)
 
     cmd = bytes()
     cmd += msgpack.packb(LTX_ENV)
@@ -324,7 +325,7 @@ def test_env_too_many_error(ltx_helper):
     ltx_helper.send(cmd, check_echo=False)
     ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
     ltx_helper.expect_exact(msgpack.packb(
-        "Can't have more than 1024 environment variables"))
+        "Set too many environment variables"))
 
 
 def test_cwd_local(ltx_helper, tmpdir):
