@@ -61,10 +61,10 @@ struct ltx_buffer
 struct ltx_exec_env
 {
 	/* environment key */
-	char key[1024];
+	char key[MAX_STRING_LEN];
 
 	/* environment value */
-	char value[1024];
+	char value[MAX_STRING_LEN];
 };
 
 struct ltx_exec_slot
