@@ -152,7 +152,7 @@ def test_version(ltx_helper):
     """
     Test VERSION command.
     """
-    ltx_helper.send(msgpack.packb(LTX_VERSION))
+    ltx_helper.send(msgpack.packb(LTX_VERSION), check_echo=False)
     ltx_helper.expect_exact(msgpack.packb(LTX_VERSION))
     ltx_helper.expect_exact(msgpack.packb("0.1"))
 

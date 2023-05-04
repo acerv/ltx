@@ -233,8 +233,6 @@ static void ltx_read_string(
 
 static void ltx_handle_version(struct ltx_session *session)
 {
-	ltx_echo(session);
-
 	struct mp_message msgs[2];
 
 	mp_message_uint(&msgs[0], LTX_VERSION);
