@@ -170,13 +170,18 @@ static inline void ltx_send_messages(
 	struct mp_message *const msgs,
 	const int count)
 {
-	mp_write_messages(session->stdout_fd, msgs, count);
+	for (unsigned i = 0; i < count; i++) {
+		struct mp_message *msg = msgs + i;
+		assert(write(
+			session->stdout_fd,
+			msg->data, msg->length) == msg->length);
+	}
 }
 
 static void ltx_echo(struct ltx_session *session)
 {
-	mp_write_messages(
-		session->stdout_fd,
+	ltx_send_messages(
+		session,
 		session->ltx_buffer.msgs,
 		session->ltx_buffer.pos + 1);
 

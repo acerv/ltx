@@ -8,17 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <stdio.h>
-#include <unistd.h>
 #include "message.h"
 #include "utils.h"
-
-struct msgpack_writer
-{
-	int fd;
-	size_t pos;
-	uint8_t data[BUFSIZ];
-};
 
 void mp_message_init(struct mp_message *msg)
 {
@@ -320,62 +311,4 @@ uint8_t *mp_message_read_bin(struct mp_message *msg, size_t *size)
 	*size = msg->length - start;
 
 	return msg->data + start;
-}
-
-/* Write data inside file. */
-static void mp_buffer_write(struct msgpack_writer *const writer)
-{
-	if (!writer->pos)
-		return;
-
-	assert(write(writer->fd, writer->data, writer->pos) == writer->pos);
-	writer->pos = 0;
-}
-
-/* Populate buffer with given data. Each time buffer becomes full, data is
- * written on file.
- */
-static void mp_buffer_push(
-	struct msgpack_writer *writer,
-	uint8_t *const data,
-	const size_t size)
-{
-	size_t avail;
-	size_t towrite;
-	size_t written = 0;
-
-	while (written < size) {
-		avail = BUFSIZ - writer->pos;
-		towrite = size <= avail ? size : avail;
-
-		memcpy(writer->data + writer->pos, data + written, towrite);
-		(writer->pos) += towrite;
-
-		written += towrite;
-
-		/* if buffer is full we write it on file */
-		if (writer->pos >= BUFSIZ)
-			mp_buffer_write(writer);
-	}
-}
-
-void mp_write_messages(
-	const int fd,
-	struct mp_message *const msgs,
-	const size_t num)
-{
-	assert(fd >= 0);
-	assert(msgs);
-	assert(num > 0);
-
-	struct msgpack_writer writer = { .pos = 0, .fd = fd };
-	struct mp_message *msg;
-	size_t i;
-
-	for (i = 0; i < num; i++) {
-		msg = (struct mp_message *)(msgs + i);
-		mp_buffer_push(&writer, msg->data, msg->length);
-	}
-
-	mp_buffer_write(&writer);
 }

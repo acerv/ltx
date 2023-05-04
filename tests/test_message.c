@@ -242,7 +242,7 @@ static int write_message_and_read(struct mp_message *msg, uint8_t *buf, size_t b
 	ck_assert_int_ne(fd, -1);
 	ck_assert_int_ne(ftruncate(fd, buf_size), -1);
 
-	mp_write_messages(fd, msg, 1);
+	write(fd, msg->data, msg->length);
 
 	lseek(fd, 0, SEEK_SET);
 	fsync(fd);

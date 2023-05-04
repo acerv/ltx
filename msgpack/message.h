@@ -88,7 +88,4 @@ void mp_message_bin(struct mp_message *msg, uint8_t *const data, const size_t si
 /* Return pointer to the first element of data. */
 uint8_t *mp_message_read_bin(struct mp_message *msg, size_t *size);
 
-/* Write an array of messages into specific file descriptor. */
-void mp_write_messages(const int fd, struct mp_message *const msgs, const size_t size);
-
 #endif /* MSGPACK_MESSAGE_H */
