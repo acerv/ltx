@@ -29,7 +29,7 @@
 #define MAX_EVENTS 128
 
 /* maximum number of msgpack messages per ltx message */
-#define MAX_MESSAGES 20
+#define MAX_MESSAGES 5
 
 /* maximum number of slots to execute commands */
 #define MAX_SLOTS 128
