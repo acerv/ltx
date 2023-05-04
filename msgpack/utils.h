@@ -16,6 +16,7 @@
 #endif
 
 #include <stdint.h>
+#include <string.h>
 
 /* takes a number and convert it into a big-endian array */
 static uint64_t mp_bytes_to_number(uint8_t *const bytes, const int len)
