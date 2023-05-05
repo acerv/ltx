@@ -12,6 +12,11 @@ all:
 test:
 	$(CC) $(CFLAGS) -lcheck \
 		msgpack/message.c \
+		tests/test_utils.c \
+		-o tests/test_utils
+
+	$(CC) $(CFLAGS) -lcheck \
+		msgpack/message.c \
 		tests/test_message.c \
 		-o tests/test_message
 
@@ -22,4 +27,4 @@ test:
 		-o tests/test_unpack
 
 clean:
-	rm -f ltx tests/test_message tests/test_unpack
+	rm -f ltx tests/test_utils tests/test_message tests/test_unpack

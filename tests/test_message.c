@@ -83,39 +83,52 @@ END_TEST
 START_TEST(test_mp_message_read_uint)
 {
 	struct mp_message msg;
-	uint64_t value;
+	uint64_t value = 0xffffffffffffffff;
 
 	mp_message_init(&msg);
-	mp_message_uint(&msg, 0xffffffffffffffff);
+	mp_message_uint(&msg, value);
 
 	ck_assert_ptr_nonnull(msg.data);
 	ck_assert_uint_eq(mp_message_type(&msg), MP_NUMERIC);
-	ck_assert_uint_eq(mp_message_read_uint(&msg), 0xffffffffffffffff);
+	ck_assert_uint_eq(mp_message_read_uint(&msg), value);
 
 	mp_message_destroy(&msg);
 }
 END_TEST
 
-void test_mp_message_str(uint8_t type, size_t len)
+void test_mp_message_str(size_t len)
 {
-	struct mp_message msg;
-	uint8_t length[8];
-	int lensize;
-	char *data;
-
-	data = (char*)malloc(len);
+	char *data = (char*) malloc(len);
 	memset(data, 'a', len);
 
-	mp_message_init(&msg);
+	int length_bytes = mp_read_number_bytes(len);
+	int type;
+
+	switch (length_bytes) {
+	case 1:
+		type = MP_STR8;
+		break;
+	case 2:
+		type = MP_STR16;
+		break;
+	case 4:
+		type = MP_STR32;
+		break;
+	default:
+		break;
+	}
+
+	char length[length_bytes];
+	mp_write_number(len, length, length_bytes);
+
+	struct mp_message msg;
 	mp_message_str(&msg, data);
-	mp_number_to_bytes(len, length, &lensize);
 
 	ck_assert_ptr_nonnull(msg.data);
 	ck_assert_uint_eq(msg.data[0], type);
-	ck_assert_mem_eq(msg.data + 1, length, lensize);
-	ck_assert_mem_eq(msg.data + 1 + lensize, data, len);
+	ck_assert_mem_eq(msg.data + 1, length, length_bytes);
+	ck_assert_mem_eq(msg.data + 1 + length_bytes, data, len);
 
-	free(data);
 	mp_message_destroy(&msg);
 }
 
@@ -137,19 +150,19 @@ END_TEST
 
 START_TEST(test_mp_message_str8)
 {
-	test_mp_message_str(MP_STR8, 0xff);
+	test_mp_message_str(0xff);
 }
 END_TEST
 
 START_TEST(test_mp_message_str16)
 {
-	test_mp_message_str(MP_STR16, 0xfff);
+	test_mp_message_str(0xfff);
 }
 END_TEST
 
 START_TEST(test_mp_message_str32)
 {
-	test_mp_message_str(MP_STR32, 0xfffff);
+	test_mp_message_str(0xfffff);
 }
 END_TEST
 
@@ -173,24 +186,40 @@ START_TEST(test_mp_message_read_str)
 }
 END_TEST
 
-void test_mp_message_bin(uint8_t type, const size_t len)
+void test_mp_message_bin(const size_t len)
 {
-	struct mp_message msg;
-	uint8_t length[8];
-	int lensize;
 	char *data;
 
 	data = (char*)malloc(len);
 	memset(data, 'x', len);
 
-	mp_message_init(&msg);
+	int length_bytes = mp_read_number_bytes(len);
+	int type;
+
+	switch (length_bytes) {
+	case 1:
+		type = MP_BIN8;
+		break;
+	case 2:
+		type = MP_BIN16;
+		break;
+	case 4:
+		type = MP_BIN32;
+		break;
+	default:
+		break;
+	}
+
+	char length[length_bytes];
+	mp_write_number(len, length, length_bytes);
+
+	struct mp_message msg;
 	mp_message_bin(&msg, data, len);
-	mp_number_to_bytes(len, length, &lensize);
 
 	ck_assert_ptr_nonnull(msg.data);
 	ck_assert_uint_eq(msg.data[0], type);
-	ck_assert_mem_eq(msg.data + 1, length, lensize);
-	ck_assert_mem_eq(msg.data + 1 + lensize, data, len);
+	ck_assert_mem_eq(msg.data + 1, length, length_bytes);
+	ck_assert_mem_eq(msg.data + 1 + length_bytes, data, len);
 
 	free(data);
 	mp_message_destroy(&msg);
@@ -198,19 +227,19 @@ void test_mp_message_bin(uint8_t type, const size_t len)
 
 START_TEST(test_mp_message_bin8)
 {
-	test_mp_message_bin(MP_BIN8, 0xff);
+	test_mp_message_bin(0xff);
 }
 END_TEST
 
 START_TEST(test_mp_message_bin16)
 {
-	test_mp_message_bin(MP_BIN16, 0xfff);
+	test_mp_message_bin(0xfff);
 }
 END_TEST
 
 START_TEST(test_mp_message_bin32)
 {
-	test_mp_message_bin(MP_BIN32, 0xfffff);
+	test_mp_message_bin(0xfffff);
 }
 END_TEST
 
@@ -253,66 +282,62 @@ static int write_message_and_read(struct mp_message *msg, uint8_t *buf, size_t b
 	return num;
 }
 
-void test_mp_write_uint(uint8_t type, uint64_t number)
+void test_mp_write_uint(uint64_t number)
 {
-	const size_t buf_size = 9;
+	int num_bytes = mp_read_number_bytes(number);
+	int type;
 
-	struct mp_message msg;
-	uint8_t buf[buf_size];
-	uint8_t data[8];
-	int bytes_read;
-	size_t len = 0;
-
-	for (int i = 0; i < 8; i++)
-		data[i] = (uint8_t)(BIT_RIGHT_SHIFT(number, i) & 0xff);
-
-	switch (type) {
-	case MP_UINT8:
-		len = 1;
+	switch (num_bytes) {
+	case 1:
+		type = MP_UINT8;
 		break;
-	case MP_UINT16:
-		len = 2;
+	case 2:
+		type = MP_UINT16;
 		break;
-	case MP_UINT32:
-		len = 4;
+	case 4:
+		type = MP_UINT32;
 		break;
-	case MP_UINT64:
-		len = 8;
+	case 8:
+		type = MP_UINT64;
 		break;
 	default:
 		break;
 	}
 
-	mp_message_uint(&msg, number);
-	bytes_read = write_message_and_read(&msg, buf, buf_size);
+	char num_data[num_bytes];
+	mp_write_number(number, num_data, num_bytes);;
 
-	ck_assert_int_eq(bytes_read, buf_size);
-	ck_assert_mem_eq((buf + 1), data, len);
+	struct mp_message msg;
+	mp_message_uint(&msg, number);
+
+	ck_assert_ptr_nonnull(msg.data);
+	ck_assert_uint_eq(msg.data[0], type);
+	ck_assert_mem_eq(msg.data + 1, num_data, num_bytes);
 
 	mp_message_destroy(&msg);
 }
 
 START_TEST(test_mp_write_uint8)
 {
-	test_mp_write_uint(MP_UINT8, 0xff);
+	test_mp_write_uint(0xff);
 }
 END_TEST
 
 START_TEST(test_mp_write_uint16)
 {
-	test_mp_write_uint(MP_UINT16, 0xffff);
+	test_mp_write_uint(0xffff);
 }
 END_TEST
 
 START_TEST(test_mp_write_uint32)
 {
-	test_mp_write_uint(MP_UINT32, 0xffffffff);
+	test_mp_write_uint(0xffffffff);
 }
 END_TEST
 
 START_TEST(test_mp_write_uint64)
 {
-	test_mp_write_uint(MP_UINT64, 0xffffffffffffffff);
+	test_mp_write_uint(0xffffffffffffffff);
 }
 END_TEST
 
@@ -352,23 +377,19 @@ static void test_mp_write_data(uint8_t type, size_t data_size, int binary)
 	case MP_STR8:
 	case MP_BIN8:
 		ck_assert_uint_eq(buf[0], type);
-		ck_assert_uint_eq(buf[1], data_size & 0xff);
+		ck_assert_uint_eq(mp_read_number(buf + 1, 1), data_size);
 		pos = 2;
 		break;
 	case MP_STR16:
 	case MP_BIN16:
 		ck_assert_uint_eq(buf[0], type);
-		ck_assert_uint_eq(buf[2], data_size & 0xff);
-		ck_assert_uint_eq(buf[1], BIT_RIGHT_SHIFT(data_size, 8) & 0xff);
+		ck_assert_uint_eq(mp_read_number(buf + 1, 2), data_size);
 		pos = 3;
 		break;
 	case MP_STR32:
 	case MP_BIN32:
 		ck_assert_uint_eq(buf[0], type);
-		ck_assert_uint_eq(buf[4], data_size & 0xff);
-		ck_assert_uint_eq(buf[3], BIT_RIGHT_SHIFT(data_size, 8) & 0xff);
-		ck_assert_uint_eq(buf[2], BIT_RIGHT_SHIFT(data_size, 16) & 0xff);
-		ck_assert_uint_eq(buf[1], BIT_RIGHT_SHIFT(data_size, 24) & 0xff);
+		ck_assert_uint_eq(mp_read_number(buf + 1, 4), data_size);
 		pos = 5;
 		break;
 	default:

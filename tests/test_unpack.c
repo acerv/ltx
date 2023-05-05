@@ -159,55 +159,37 @@ END_TEST
 
 static void test_unpack_data(const uint8_t type)
 {
-	const size_t msg_size = 5;
-	uint8_t msg_data[] = {'x', 'x', 'x', 'x', '\0'};
-	uint8_t *data;
-
-	size_t offset;
-	int lenbytes;
-	int totlen;
-	uint8_t length[8];
 	struct mp_message msg;
-	struct mp_unpacker unpacker;
-
 	mp_message_init(&msg);
+
+	struct mp_unpacker unpacker;
 	mp_unpacker_init(&unpacker);
 	mp_unpacker_reserve(&unpacker, &msg);
-	mp_number_to_bytes(msg_size, length, &lenbytes);
 
-	switch (type) {
-	case MP_STR8:
-	case MP_BIN8:
-		lenbytes = 1;
-		break;
-	case MP_STR16:
-	case MP_BIN16:
-		lenbytes = 2;
-		break;
-	case MP_STR32:
-	case MP_BIN32:
-		lenbytes = 4;
-		break;
-	default:
-		break;
-	}
+	uint8_t msg_data[] = {'x', 'x', 'x', 'x', '\0'};
+	const size_t msg_size = 5;
+
+	int lenbytes = mp_message_base_size(type) - 1;
+	uint8_t length[lenbytes];
+
+	mp_write_number(msg_size, length, lenbytes);
 
 	/* type | length | data */
-	totlen = 1 + lenbytes + msg_size;
-	data = (uint8_t *) malloc(totlen);
+	size_t size = 1 + lenbytes + msg_size;
+	uint8_t data[size];
 
 	data[0] = type;
 	memcpy(data + 1, length, lenbytes);
 	memcpy(data + 1 + lenbytes, msg_data, msg_size);
 
 	/* unpack data */
-	offset = mp_unpacker_feed(&unpacker, data, totlen);
+	size_t offset = mp_unpacker_feed(&unpacker, data, size);
 
-	ck_assert_uint_eq(offset, totlen);
-	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_SUCCESS);
+	ck_assert_uint_eq(offset, size);
 	ck_assert_uint_eq(msg.data[0], type);
-	ck_assert_uint_eq(msg.length, totlen);
-	ck_assert_mem_eq(msg.data, data, totlen);
+	ck_assert_uint_eq(msg.length, size);
+	ck_assert_mem_eq(msg.data, data, size);
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_SUCCESS);
 
 	mp_message_destroy(&msg);
 }
@@ -242,7 +224,7 @@ START_TEST(test_unpack_split_str)
 	size_t size = 10;
 	uint8_t data[] = {
 		MP_STR32,
-		0x5, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x05,
 		'c', 'i', 'a', 'o', '\0'
 	};
 

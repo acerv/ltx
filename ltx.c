@@ -135,11 +135,11 @@ struct ltx_event
 	/* LTX event type */
 	enum ltx_event_type type;
 
+	/* slot id of the relative event */
+	uint64_t slot_id;
+
 	/* file descriptor associated with event */
 	int fd;
-
-	/* slot id of the relative event */
-	int slot_id;
 };
 
 static void ltx_message_next(struct ltx_session *session)
@@ -162,17 +162,23 @@ static void ltx_message_reset(struct ltx_session *session)
 		session->ltx_message.data);
 }
 
-static inline void ltx_send_messages(
+static inline void ltx_send_message(
+	struct ltx_session *session,
+	struct mp_message *msg)
+{
+	assert(write(
+		session->stdout_fd,
+		msg->data,
+		msg->length) == msg->length);
+}
+
+static void ltx_send_messages(
 	struct ltx_session *session,
 	struct mp_message *const msgs,
 	const int count)
 {
-	for (unsigned i = 0; i < count; i++) {
-		struct mp_message *msg = msgs + i;
-		assert(write(
-			session->stdout_fd,
-			msg->data, msg->length) == msg->length);
-	}
+	for (unsigned i = 0; i < count; i++)
+		ltx_send_message(session, msgs + i);
 }
 
 static void ltx_echo(struct ltx_session *session)
@@ -480,7 +486,7 @@ static void ltx_handle_cwd(struct ltx_session *session)
 
 static struct ltx_slot *ltx_slot_reserve(
 	struct ltx_session *session,
-	const int slot_id)
+	const uint64_t slot_id)
 {
 	assert(slot_id >= 0);
 	assert(slot_id < MAX_SLOTS);
@@ -497,7 +503,7 @@ static struct ltx_slot *ltx_slot_reserve(
 	return exec_slot;
 }
 
-static void ltx_slot_free(struct ltx_session *session, const int slot_id)
+static void ltx_slot_free(struct ltx_session *session, const uint64_t slot_id)
 {
 	assert(slot_id >= 0);
 	assert(slot_id < MAX_SLOTS);
@@ -672,7 +678,7 @@ static void ltx_handle_log(struct ltx_session *session, struct ltx_event *evt)
 	struct mp_message msgs[4];
 
 	mp_message_uint(&msgs[0], LTX_LOG);
-	mp_message_uint(&msgs[1], (uint64_t) evt->slot_id);
+	mp_message_uint(&msgs[1], evt->slot_id);
 	mp_message_uint(&msgs[2], ltx_gettime());
 	mp_message_str(&msgs[3], session->stdin_buffer);
 
@@ -682,7 +688,7 @@ static void ltx_handle_log(struct ltx_session *session, struct ltx_event *evt)
 
 static void ltx_handle_result(
 	struct ltx_session *session,
-	int slot_id,
+	uint64_t slot_id,
 	int ssi_code,
 	int ssi_status)
 {
@@ -692,7 +698,7 @@ static void ltx_handle_result(
 	struct mp_message msgs[5];
 
 	mp_message_uint(&msgs[0], LTX_RESULT);
-	mp_message_uint(&msgs[1], (uint64_t)slot_id);
+	mp_message_uint(&msgs[1], slot_id);
 	mp_message_uint(&msgs[2], ltx_gettime());
 	mp_message_uint(&msgs[3], (uint64_t)ssi_code);
 	mp_message_uint(&msgs[4], (uint64_t)ssi_status);
@@ -716,7 +722,7 @@ static void ltx_send_result(struct ltx_session *session, struct ltx_event *evt)
 	/* iterate for all signals */
 	int sig_num = ret / sizeof(si[0]);
 	struct ltx_slot *slot;
-	int slot_id;
+	uint64_t slot_id;
 
 	for (unsigned i = 0; i < sig_num; i++) {
 		/* search for slot_id */

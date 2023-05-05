@@ -4,12 +4,19 @@
  * Copyright (c) 2023 Andrea Cervesato <andrea.cervesato@suse.com>
  */
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include "message.h"
 #include "utils.h"
+
+static void mp_message_alloc(struct mp_message *msg, const size_t bytes)
+{
+	msg->length = bytes;
+	msg->data = (uint8_t *) realloc(msg->data, msg->length);
+}
 
 void mp_message_init(struct mp_message *msg)
 {
@@ -117,21 +124,17 @@ size_t mp_message_full_size(struct mp_message *msg)
 	case MP_BIN8:
 	case MP_STR8:
 		size += 2;
-		size += (size_t)msg->data[1];
+		size += mp_read_number(msg->data + 1, 1);
 		break;
 	case MP_BIN16:
 	case MP_STR16:
 		size += 3;
-		size += (size_t)msg->data[1];
-		size += (size_t)BIT_LEFT_SHIFT(msg->data[2], 8);
+		size += mp_read_number(msg->data + 1, 2);
 		break;
 	case MP_BIN32:
 	case MP_STR32:
 		size += 5;
-		size += (size_t)msg->data[1];
-		size += (size_t)BIT_LEFT_SHIFT(msg->data[2], 8);
-		size += (size_t)BIT_LEFT_SHIFT(msg->data[3], 16);
-		size += (size_t)BIT_LEFT_SHIFT(msg->data[4], 24);
+		size += mp_read_number(msg->data + 1, 4);
 		break;
 	default:
 		size = 0;
@@ -148,17 +151,13 @@ void mp_message_uint(struct mp_message *msg, const uint64_t value)
 	mp_message_init(msg);
 
 	if (value <= 127) {
-		msg->length = 1;
-		msg->data = (uint8_t *) malloc(1);
-		msg->data[0] = (uint8_t) value;
+		mp_message_alloc(msg, 1);
+		msg->data[0] = (uint8_t) (value & 0xff);
 		return;
 	}
 
+	int len = mp_read_number_bytes(value);
 	uint8_t type;
-	uint8_t data[8];
-	int len;
-
-	mp_number_to_bytes(value, data, &len);
 
 	switch (len) {
 	case 1:
@@ -175,12 +174,10 @@ void mp_message_uint(struct mp_message *msg, const uint64_t value)
 		break;
 	}
 
-	msg->length = 1 + len;
-	msg->data = (uint8_t *) malloc(msg->length);
-	msg->data[0] = type;
+	mp_message_alloc(msg, 1 + len);
 
-	for (int i = 0; i < len; i++)
-		msg->data[1 + i] = data[i];
+	msg->data[0] = type;
+	mp_write_number(value, msg->data + 1, len);
 }
 
 uint64_t mp_message_read_uint(struct mp_message *msg)
@@ -188,12 +185,13 @@ uint64_t mp_message_read_uint(struct mp_message *msg)
 	assert(msg);
 	assert(msg->data);
 
-	size_t start = mp_message_base_size(msg->data[0]);
-	assert(start > 0);
+	size_t size = mp_message_full_size(msg);
+	assert(size > 0);
 
-	uint64_t value = start > 1 ?
-		mp_bytes_to_number(msg->data + 1, start - 1) :
-		(uint64_t) msg->data[0];
+	if (size == 1)
+		return (uint64_t) msg->data[0];
+
+	uint64_t value = mp_read_number(msg->data + 1, size - 1);
 
 	return value;
 }
@@ -203,20 +201,18 @@ void mp_message_str(struct mp_message *msg, const char *const str)
 	assert(msg);
 	assert(str);
 
-	uint8_t type;
-	uint8_t lendata[8];
-	int lensize = 0;
-
 	mp_message_init(msg);
 
 	size_t datasize = strlen(str);
 	assert(datasize <= 0xffffffff);
 
+	int lensize = mp_read_number_bytes(datasize);
+	uint8_t type;
+
 	if (datasize <= 32) {
 		type = MP_FIXSTR0 + datasize;
+		lensize = 0;
 	} else {
-		mp_number_to_bytes(datasize, lendata, &lensize);
-
 		switch(lensize) {
 		case 1:
 			type = MP_STR8;
@@ -230,15 +226,11 @@ void mp_message_str(struct mp_message *msg, const char *const str)
 		}
 	}
 
-	msg->length = 1 + lensize + datasize;
-
-	msg->data = (uint8_t *) malloc(msg->length);
-	memset(msg->data, 0, msg->length);
+	mp_message_alloc(msg, 1 + lensize + datasize);
 
 	msg->data[0] = type;
-
 	if (lensize > 0)
-		memcpy(msg->data + 1, lendata, lensize);
+		mp_write_number(datasize, msg->data + 1, lensize);
 
 	memcpy(msg->data + 1 + lensize, str, datasize);
 }
@@ -270,12 +262,10 @@ void mp_message_bin(
 	assert(data);
 	assert(size > 0 && size <= 0xffffffff);
 
-	uint8_t type;
-	uint8_t length[8];
-	int lensize;
-
 	mp_message_init(msg);
-	mp_number_to_bytes(size, length, &lensize);
+
+	int lensize = mp_read_number_bytes(size);
+	uint8_t type;
 
 	switch(lensize) {
 	case 1:
@@ -289,13 +279,10 @@ void mp_message_bin(
 		break;
 	}
 
-	msg->length = 1 + lensize + size;
-
-	msg->data = (uint8_t *) malloc(msg->length);
-	memset(msg->data, 0, msg->length);
+	mp_message_alloc(msg, 1 + lensize + size);
 
 	msg->data[0] = type;
-	memcpy(msg->data + 1, length, lensize);
+	mp_write_number((uint64_t)size, msg->data + 1, lensize);
 	memcpy(msg->data + 1 + lensize, data, size);
 }
 
