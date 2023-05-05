@@ -15,6 +15,7 @@ struct mp_message
 {
 	uint8_t *data;
 	size_t length;
+	uint8_t reserved;
 };
 
 /* msgpack supported formats (small set of all) */
