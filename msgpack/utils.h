@@ -14,6 +14,7 @@
 #endif
 
 #include <stdint.h>
+#include <string.h>
 
 union extract_uint64
 {
