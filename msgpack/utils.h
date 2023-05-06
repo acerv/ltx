@@ -10,7 +10,7 @@
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
  #define SWAP_BYTES(value) __builtin_bswap64(value)
 #else
- #define SWAP_BYTES(value) do {} while(0)
+ #define SWAP_BYTES(value) value
 #endif
 
 #include <stdint.h>
