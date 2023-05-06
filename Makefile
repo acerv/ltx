@@ -6,7 +6,6 @@ all:
 		msgpack/unpack.c \
 		msgpack/message.c \
 		ltx.c \
-		main.c \
 		-o ltx
 
 test:
