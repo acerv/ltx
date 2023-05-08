@@ -438,7 +438,7 @@ def test_exec_reserved_error(ltx_helper):
     cmd = bytes()
     cmd += msgpack.packb(LTX_EXEC)
     cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("sleep 0.5")
+    cmd += msgpack.packb("sleep 0.3")
     cmd += msgpack.packb(LTX_EXEC)
     cmd += msgpack.packb(slot)
     cmd += msgpack.packb("echo ciao")
@@ -447,8 +447,6 @@ def test_exec_reserved_error(ltx_helper):
 
     ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
     ltx_helper.expect_exact(msgpack.packb("Execution slot is reserved"))
-
-    time.sleep(0.5)
 
 
 def test_exec_env_local(ltx_helper):
