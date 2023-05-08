@@ -19,6 +19,8 @@
 #include <sys/mman.h>
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
+#include <sys/statfs.h>
+#include <linux/magic.h>
 #include <linux/limits.h> /* PATH_MAX */
 
 #include "base.h"
@@ -271,6 +273,20 @@ static void ltx_handle_ping(struct ltx_session *session)
 	ltx_message_reset(session);
 }
 
+static int ltx_file_from_proc(struct ltx_session *session, const int fd)
+{
+	struct statfs fs;
+
+	if (fstatfs(fd, &fs) == -1) {
+		ltx_handle_error(session, "fstatfs() error", 1);
+		return -1;
+	}
+
+	int is_proc = (fs.f_type == PROC_SUPER_MAGIC) ? 1 : 0;
+
+	return is_proc;
+}
+
 static void ltx_handle_get_file(struct ltx_session *session)
 {
 	char path[MAX_STRING_LEN];
@@ -287,9 +303,18 @@ static void ltx_handle_get_file(struct ltx_session *session)
 		return;
 	}
 
+	int from_proc = ltx_file_from_proc(session, fd);
+	if (from_proc == -1)
+		return;
+
 	struct stat st;
 	if (fstat(fd, &st) == -1) {
 		ltx_handle_error(session, "fstat() error", 1);
+		return;
+	}
+
+	if (!S_ISREG(st.st_mode)) {
+		ltx_handle_error(session, "Given path is not a file", 0);
 		return;
 	}
 
@@ -298,25 +323,53 @@ static void ltx_handle_get_file(struct ltx_session *session)
 		return;
 	}
 
-	char data[READ_BUFFER_SIZE];
 	struct mp_message msgs[2];
-	ssize_t pos = 0, ret;
+	ssize_t nread;
 
-	do {
-		ret = read(fd, data, READ_BUFFER_SIZE);
-		if (ret == -1) {
-			ltx_handle_error(session, "read() error", 1);
+	if (from_proc) {
+		/* read /proc files has zero length. We need to use getline() */
+		FILE *stream = fdopen(fd, "r");
+		if (!stream) {
+			ltx_handle_error(session, "fdopen() error", 1);
+			return;
+		};
+
+		char *line = NULL;
+		while ((nread = getline(&line, &nread, stream)) != -1) {
+			mp_message_uint(&msgs[0], LTX_DATA);
+			mp_message_bin(&msgs[1], line, nread);
+
+			ltx_send_messages(session, msgs, 2);
+		}
+
+		if (!feof(stream)) {
+			ltx_handle_error(session, "getline() error", 1);
 			return;
 		}
-		pos += ret;
+	} else {
+		/* regular files can use read() */
+		char data[READ_BUFFER_SIZE];
+		ssize_t pos = 0, nread;
 
-		mp_message_uint(&msgs[0], LTX_DATA);
-		mp_message_bin(&msgs[1], data, ret);
+		do {
+			nread = read(fd, data, READ_BUFFER_SIZE);
+			if (nread == -1) {
+				ltx_handle_error(session, "read() error", 1);
+				return;
+			}
+			pos += nread;
 
-		ltx_send_messages(session, msgs, 2);
-	} while (pos < st.st_size);
+			mp_message_uint(&msgs[0], LTX_DATA);
+			mp_message_bin(&msgs[1], data, nread);
 
-	close(fd);
+			ltx_send_messages(session, msgs, 2);
+		} while (pos < st.st_size);
+	}
+
+	if (close(fd) == -1) {
+		ltx_handle_error(session, "close() error", 1);
+		return;
+	}
 
 	mp_message_uint(&msgs[0], LTX_GET_FILE);
 	mp_message_str(&msgs[1], path);

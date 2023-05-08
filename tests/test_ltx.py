@@ -225,6 +225,26 @@ def test_get_file(ltx_helper, tmpdir):
     ltx_helper.expect_exact(msgpack.packb(path_str))
 
 
+def test_get_file_from_proc(ltx_helper, tmpdir):
+    """
+    Test GET_FILE command reading from /proc.
+    """
+    path_str = "/proc/self/personality"
+
+    cmd = bytes()
+    cmd += msgpack.packb(LTX_GET_FILE)
+    cmd += msgpack.packb(path_str)
+
+    ltx_helper.send(cmd, check_echo=False)
+
+    ltx_helper.expect_exact(msgpack.packb(LTX_DATA))
+    pers = ltx_helper.unpack_next()
+    int(pers.rstrip(), 16)
+
+    ltx_helper.expect_exact(msgpack.packb(LTX_GET_FILE))
+    ltx_helper.expect_exact(msgpack.packb(path_str))
+
+
 def test_set_file(ltx_helper, tmpdir):
     """
     Test SET_FILE command.
