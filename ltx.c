@@ -342,6 +342,9 @@ static void ltx_handle_get_file(struct ltx_session *session)
 			ltx_send_messages(session, msgs, 2);
 		}
 
+		if (line)
+			free(line);
+
 		if (!feof(stream)) {
 			ltx_handle_error(session, "getline() error", 1);
 			return;
