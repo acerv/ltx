@@ -383,11 +383,6 @@ static void ltx_handle_set_file(struct ltx_session *session)
 	char path[MAX_STRING_LEN];
 	ltx_read_string(session, session->ltx_message.data + 1, path);
 
-	ssize_t size;
-	void *data = mp_message_read_bin(session->ltx_message.data + 2, &size);
-	assert(data);
-	assert(size > 0);
-
 	if (path[0] == '\0') {
 		ltx_handle_error(session, "Empty given path", 0);
 		return;
@@ -398,6 +393,11 @@ static void ltx_handle_set_file(struct ltx_session *session)
 		ltx_handle_error(session, "open() error", 1);
 		return;
 	}
+
+	ssize_t size;
+	void *data = mp_message_read_bin(session->ltx_message.data + 2, &size);
+	assert(data);
+	assert(size > 0);
 
 	ssize_t pos = 0, ret;
 	do {

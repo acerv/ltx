@@ -225,7 +225,7 @@ def test_get_file(ltx_helper, tmpdir):
     ltx_helper.expect_exact(msgpack.packb(path_str))
 
 
-def test_get_file_from_proc(ltx_helper, tmpdir):
+def test_get_file_from_proc(ltx_helper):
     """
     Test GET_FILE command reading from /proc.
     """
@@ -245,6 +245,36 @@ def test_get_file_from_proc(ltx_helper, tmpdir):
     ltx_helper.expect_exact(msgpack.packb(path_str))
 
 
+def test_get_file_empty_path_error(ltx_helper):
+    """
+    Test GET_FILE command error when empty path is given.
+    """
+    cmd = bytes()
+    cmd += msgpack.packb(LTX_GET_FILE)
+    cmd += msgpack.packb('')
+
+    ltx_helper.send(cmd, check_echo=False)
+
+    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
+    ltx_helper.expect_exact(msgpack.packb("Empty given path"))
+
+
+def test_get_file_not_file_error(ltx_helper):
+    """
+    Test GET_FILE command error when regular file is not given.
+    """
+    path_str = "/"
+
+    cmd = bytes()
+    cmd += msgpack.packb(LTX_GET_FILE)
+    cmd += msgpack.packb(path_str)
+
+    ltx_helper.send(cmd, check_echo=False)
+
+    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
+    ltx_helper.expect_exact(msgpack.packb("Given path is not a file"))
+
+
 def test_set_file(ltx_helper, tmpdir):
     """
     Test SET_FILE command.
@@ -262,6 +292,21 @@ def test_set_file(ltx_helper, tmpdir):
     ltx_helper.expect_exact(msgpack.packb(path_str))
 
     assert os.path.isfile(path_str)
+
+
+def test_set_file_empty_path_error(ltx_helper):
+    """
+    Test SET_FILE command error when empty path is given.
+    """
+    cmd = bytes()
+    cmd += msgpack.packb(LTX_SET_FILE)
+    cmd += msgpack.packb('')
+    cmd += msgpack.packb(b'')
+
+    ltx_helper.send(cmd, check_echo=False)
+
+    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
+    ltx_helper.expect_exact(msgpack.packb("Empty given path"))
 
 
 def test_env_local(ltx_helper):
