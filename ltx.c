@@ -55,6 +55,9 @@ struct ltx_message
 	/* current unpacking data position */
 	size_t curr;
 
+	/* expected number of msgpack messages */
+	size_t length;
+
 	/* messages which are building the ltx message */
 	struct mp_message data[MAX_MESSAGES];
 };
@@ -143,7 +146,7 @@ struct ltx_event
 	int fd;
 };
 
-static void ltx_message_next(struct ltx_session *session)
+static void ltx_message_reserve_next(struct ltx_session *session)
 {
 	++(session->ltx_message.curr);
 	assert(session->ltx_message.curr < MAX_MESSAGES);
@@ -157,6 +160,7 @@ static void ltx_message_reset(struct ltx_session *session)
 {
 	session->ltx_message.type = LTX_NONE;
 	session->ltx_message.curr = 0;
+	session->ltx_message.length = 0;
 
 	mp_unpacker_reserve(
 		&session->msg_unpacker,
@@ -178,6 +182,11 @@ static void ltx_send_messages(
 	struct mp_message *const msgs,
 	const int count)
 {
+	struct mp_message msg;
+
+	mp_message_array(&msg, count);
+	ltx_send_message(session, &msg);
+
 	for (unsigned i = 0; i < count; i++)
 		ltx_send_message(session, msgs + i);
 }
@@ -830,112 +839,121 @@ static void ltx_handle_kill(struct ltx_session *session)
 
 static void ltx_process_msg(struct ltx_session *session)
 {
-	int read_next = 1;
+	struct ltx_message *msg = &session->ltx_message;
+	int reserve_next = 1;
 
-	/* handle requests composed by single message or errors */
-	if (session->ltx_message.type == LTX_NONE) {
-		if (mp_message_type(session->ltx_message.data) != MP_NUMERIC) {
-			ltx_handle_error(
-				session,
-				"Message type must be a numeric",
-				0);
-			return;
-		}
+	if (msg->type == LTX_NONE) {
+		if (!msg->length) {
+			if (mp_message_type(msg->data) != MP_ARRAY) {
+				ltx_handle_error(
+					session,
+					"Messages must be packed inside array",
+					0);
+				return;
+			}
 
-		/* numeric types are used to store commands type.
-		 * we save received command type and wait for next messages.
-		 */
-		session->ltx_message.type = (uint32_t) mp_message_read_uint(
-			session->ltx_message.data);
+			/* read number messages inside the array */
+			msg->length = mp_message_read_array_length(msg->data);
 
-		switch (session->ltx_message.type) {
-		/* handle commands with single message request */
-		case LTX_VERSION:
-			ltx_handle_version(session);
-			break;
-		case LTX_PING:
-			ltx_handle_ping(session);
-			break;
-		/* handle commands which should never be sent */
-		case LTX_PONG:
-			ltx_handle_error(
-				session,
-				"PONG should not be received",
-				0);
-			break;
-		case LTX_ERROR:
-			ltx_handle_error(
-				session,
-				"ERROR should not be received",
-				0);
-			break;
-		case LTX_DATA:
-			ltx_handle_error(
-				session,
-				"DATA should not be received",
-				0);
-			break;
-		case LTX_RESULT:
-			ltx_handle_error(
-				session,
-				"RESULT should not be received",
-				0);
-			break;
-		case LTX_LOG:
-			ltx_handle_error(
-				session,
-				"LOG should not be received",
-				0);
-			break;
-		default:
-			break;
+			/* array message is not carrying request information */
+			reserve_next = 0;
+		} else {
+			/* handle requests composed by a single message */
+			if (mp_message_type(msg->data) != MP_NUMERIC) {
+				ltx_handle_error(
+					session,
+					"Message type must be a numeric",
+					0);
+				return;
+			}
+
+			/* numeric types are used to store commands type.
+			* we save received command type and wait for next messages.
+			*/
+			msg->type = (uint32_t)mp_message_read_uint(msg->data);
+
+			switch (msg->type) {
+			/* handle commands with single message request */
+			case LTX_VERSION:
+				reserve_next = 0;
+				ltx_handle_version(session);
+				break;
+			case LTX_PING:
+				reserve_next = 0;
+				ltx_handle_ping(session);
+				break;
+			/* handle commands which should never be sent */
+			case LTX_PONG:
+				reserve_next = 0;
+				ltx_handle_error(
+					session,
+					"PONG should not be received",
+					0);
+				break;
+			case LTX_ERROR:
+				reserve_next = 0;
+				ltx_handle_error(
+					session,
+					"ERROR should not be received",
+					0);
+				break;
+			case LTX_DATA:
+				reserve_next = 0;
+				ltx_handle_error(
+					session,
+					"DATA should not be received",
+					0);
+				break;
+			case LTX_RESULT:
+				reserve_next = 0;
+				ltx_handle_error(
+					session,
+					"RESULT should not be received",
+					0);
+				break;
+			case LTX_LOG:
+				reserve_next = 0;
+				ltx_handle_error(
+					session,
+					"LOG should not be received",
+					0);
+				break;
+			default:
+				break;
+			}
 		}
 	} else {
 		/* handle requests composed by multiple messages */
-		switch (session->ltx_message.type) {
-		case LTX_GET_FILE:
-			if (session->ltx_message.curr >= 1) {
+		if (msg->curr == msg->length - 1) {
+			reserve_next = 0;
+
+			switch (msg->type) {
+			case LTX_GET_FILE:
 				ltx_handle_get_file(session);
-				read_next = 0;
-			}
-			break;
-		case LTX_SET_FILE:
-			if (session->ltx_message.curr >= 2) {
+				break;
+			case LTX_SET_FILE:
 				ltx_handle_set_file(session);
-				read_next = 0;
-			}
-			break;
-		case LTX_ENV:
-			if (session->ltx_message.curr >= 3) {
+				break;
+			case LTX_ENV:
 				ltx_handle_env(session);
-				read_next = 0;
-			}
-			break;
-		case LTX_CWD:
-			if (session->ltx_message.curr >= 2) {
+				break;
+			case LTX_CWD:
 				ltx_handle_cwd(session);
-				read_next = 0;
-			}
-			break;
-		case LTX_EXEC:
-			if (session->ltx_message.curr >= 2) {
+				break;
+			case LTX_EXEC:
 				ltx_handle_exec(session);
-				read_next = 0;
-			}
-			break;
-		case LTX_KILL:
-			if (session->ltx_message.curr >= 1) {
+				break;
+			case LTX_KILL:
 				ltx_handle_kill(session);
-				read_next = 0;
+				break;
+			default:
+				break;
 			}
-			break;
-		default:
-			break;
 		}
 	}
 
-	if (read_next)
-		ltx_message_next(session);
+	if (reserve_next)
+		ltx_message_reserve_next(session);
 }
 
 static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)

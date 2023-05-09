@@ -152,9 +152,8 @@ def test_version(ltx_helper):
     """
     Test VERSION command.
     """
-    ltx_helper.send(msgpack.packb(LTX_VERSION), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_VERSION))
-    ltx_helper.expect_exact(msgpack.packb("0.1"))
+    ltx_helper.send(msgpack.packb([LTX_VERSION]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb([LTX_VERSION, "0.1"]))
 
 
 def test_ping(ltx_helper):
@@ -163,38 +162,38 @@ def test_ping(ltx_helper):
     """
     start_t = time.monotonic_ns()
 
-    ltx_helper.send(msgpack.packb(LTX_PING))
-    ltx_helper.expect_exact(msgpack.packb(LTX_PONG))
+    ltx_helper.send(msgpack.packb([LTX_PING]))
 
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_PONG
+    assert start_t < reply[1] < time.monotonic_ns()
 
 
 def test_pong_error(ltx_helper):
     """
     Test that PONG command raises an ERROR:
     """
-    ltx_helper.send(msgpack.packb(LTX_PONG), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("PONG should not be received"))
+    ltx_helper.send(msgpack.packb([LTX_PONG]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb(
+        [LTX_ERROR, "PONG should not be received"]))
 
 
 def test_error(ltx_helper):
     """
     Test that ERROR command raises an ERROR:
     """
-    ltx_helper.send(msgpack.packb(LTX_ERROR), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("ERROR should not be received"))
+    ltx_helper.send(msgpack.packb([LTX_ERROR]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb(
+        [LTX_ERROR, "ERROR should not be received"]))
 
 
 def test_data_error(ltx_helper):
     """
     Test that DATA command raises an ERROR:
     """
-    ltx_helper.send(msgpack.packb(LTX_DATA), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("DATA should not be received"))
+    ltx_helper.send(msgpack.packb([LTX_DATA]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb(
+        [LTX_ERROR, "DATA should not be received"]))
 
 
 def test_get_file(ltx_helper, tmpdir):
@@ -203,26 +202,14 @@ def test_get_file(ltx_helper, tmpdir):
     """
     path = tmpdir / "temp.bin"
     path_str = str(path)
-
     path.write(b'a' * 1024 + b'b' * 1024 + b'c' * 128)
 
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_GET_FILE)
-    cmd += msgpack.packb(path_str)
+    ltx_helper.send(msgpack.packb([LTX_GET_FILE, path_str]), check_echo=False)
 
-    ltx_helper.send(cmd, check_echo=False)
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_DATA))
-    ltx_helper.expect_exact(msgpack.packb(b'a' * 1024))
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_DATA))
-    ltx_helper.expect_exact(msgpack.packb(b'b' * 1024))
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_DATA))
-    ltx_helper.expect_exact(msgpack.packb(b'c' * 128))
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_GET_FILE))
-    ltx_helper.expect_exact(msgpack.packb(path_str))
+    ltx_helper.expect_exact(msgpack.packb([LTX_DATA, b'a' * 1024]))
+    ltx_helper.expect_exact(msgpack.packb([LTX_DATA, b'b' * 1024]))
+    ltx_helper.expect_exact(msgpack.packb([LTX_DATA, b'c' * 128]))
+    ltx_helper.expect_exact(msgpack.packb([LTX_GET_FILE, path_str]))
 
 
 def test_get_file_from_proc(ltx_helper):
@@ -231,48 +218,29 @@ def test_get_file_from_proc(ltx_helper):
     """
     path_str = "/proc/self/personality"
 
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_GET_FILE)
-    cmd += msgpack.packb(path_str)
+    ltx_helper.send(msgpack.packb([LTX_GET_FILE, path_str]), check_echo=False)
 
-    ltx_helper.send(cmd, check_echo=False)
+    reply = ltx_helper.unpack_next()
+    int(reply[1].rstrip(), 16)
 
-    ltx_helper.expect_exact(msgpack.packb(LTX_DATA))
-    pers = ltx_helper.unpack_next()
-    int(pers.rstrip(), 16)
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_GET_FILE))
-    ltx_helper.expect_exact(msgpack.packb(path_str))
+    ltx_helper.expect_exact(msgpack.packb([LTX_GET_FILE, path_str]))
 
 
 def test_get_file_empty_path_error(ltx_helper):
     """
     Test GET_FILE command error when empty path is given.
     """
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_GET_FILE)
-    cmd += msgpack.packb('')
-
-    ltx_helper.send(cmd, check_echo=False)
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("Empty given path"))
+    ltx_helper.send(msgpack.packb([LTX_GET_FILE, '']), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Empty given path"]))
 
 
 def test_get_file_not_file_error(ltx_helper):
     """
     Test GET_FILE command error when regular file is not given.
     """
-    path_str = "/"
-
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_GET_FILE)
-    cmd += msgpack.packb(path_str)
-
-    ltx_helper.send(cmd, check_echo=False)
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("Given path is not a file"))
+    ltx_helper.send(msgpack.packb([LTX_GET_FILE, "/"]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb(
+        [LTX_ERROR, "Given path is not a file"]))
 
 
 def test_set_file(ltx_helper, tmpdir):
@@ -282,14 +250,10 @@ def test_set_file(ltx_helper, tmpdir):
     path_str = str(tmpdir / "temp.bin")
     data = b'ciao'
 
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_SET_FILE)
-    cmd += msgpack.packb(path_str)
-    cmd += msgpack.packb(data)
-
-    ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_SET_FILE))
-    ltx_helper.expect_exact(msgpack.packb(path_str))
+    ltx_helper.send(msgpack.packb(
+        [LTX_SET_FILE, path_str, data]),
+        check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb([LTX_SET_FILE, path_str]))
 
     assert os.path.isfile(path_str)
 
@@ -298,15 +262,8 @@ def test_set_file_empty_path_error(ltx_helper):
     """
     Test SET_FILE command error when empty path is given.
     """
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_SET_FILE)
-    cmd += msgpack.packb('')
-    cmd += msgpack.packb(b'')
-
-    ltx_helper.send(cmd, check_echo=False)
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("Empty given path"))
+    ltx_helper.send(msgpack.packb([LTX_SET_FILE, '', b'']), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Empty given path"]))
 
 
 def test_env_local(ltx_helper):
@@ -314,50 +271,25 @@ def test_env_local(ltx_helper):
     Test ENV command on single slot.
     """
     for i in range(0, MAX_ENVS):
-        key = f"mykey{i}"
-        value = f"myvalue{i}"
-
-        cmd = bytes()
-        cmd += msgpack.packb(LTX_ENV)
-        cmd += msgpack.packb(i)
-        cmd += msgpack.packb(key)
-        cmd += msgpack.packb(value)
-
-        ltx_helper.send(cmd)
+        ltx_helper.send(msgpack.packb(
+            [LTX_ENV, i, f"mykey{i}", f"myvalue{i}"]))
 
 
 def test_env_global(ltx_helper):
     """
     Test ENV command for all slots.
     """
-    key = "mykey"
-    value = "myvalue"
-
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_ENV)
-    cmd += msgpack.packb(ALL_SLOTS)
-    cmd += msgpack.packb(key)
-    cmd += msgpack.packb(value)
-
-    ltx_helper.send(cmd)
+    ltx_helper.send(msgpack.packb([LTX_ENV, ALL_SLOTS, "mykey", "myvalue"]))
 
 
 def test_env_out_of_bound_error(ltx_helper):
     """
     Test ENV command on out-of-bound slot.
     """
-    key = f"mykey"
-    value = f"myvalue"
-
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_ENV)
-    cmd += msgpack.packb(MAX_SLOTS + 1)
-    cmd += msgpack.packb(key)
-    cmd += msgpack.packb(value)
+    cmd = msgpack.packb([LTX_ENV, MAX_SLOTS + 1, "mykey", "myvalue"])
 
     ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("Out of bound slot ID"))
+    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
 
 
 def test_env_too_many_error(ltx_helper):
@@ -366,84 +298,50 @@ def test_env_too_many_error(ltx_helper):
     """
     # saturate the amount of env variables
     for i in range(0, MAX_ENVS):
-        key = f"mykey{i}"
-        value = f"myvalue{i}"
-
-        cmd = bytes()
-        cmd += msgpack.packb(LTX_ENV)
-        cmd += msgpack.packb(0)
-        cmd += msgpack.packb(key)
-        cmd += msgpack.packb(value)
-
-        ltx_helper.send(cmd)
+        ltx_helper.send(msgpack.packb(
+            [LTX_ENV, 0, f"mykey{i}", f"myvalue{i}"]))
 
     # add just one more key and check for errors
     key = "mykey" + str(MAX_ENVS + 1)
     value = "myvalue" + str(MAX_ENVS + 1)
 
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_ENV)
-    cmd += msgpack.packb(0)
-    cmd += msgpack.packb(key)
-    cmd += msgpack.packb(value)
-
-    ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
+    ltx_helper.send(msgpack.packb([LTX_ENV, 0, key, value]), check_echo=False)
     ltx_helper.expect_exact(msgpack.packb(
-        "Set too many environment variables"))
+        [LTX_ERROR, "Set too many environment variables"]))
 
 
 def test_cwd_local(ltx_helper, tmpdir):
     """
     Test CWD command on single slot.
     """
-    for i in range(0, 128):
-        cmd = bytes()
-        cmd += msgpack.packb(LTX_CWD)
-        cmd += msgpack.packb(i)
-        cmd += msgpack.packb(str(tmpdir))
-
-        ltx_helper.send(cmd)
+    for i in range(0, MAX_SLOTS):
+        ltx_helper.send(msgpack.packb([LTX_CWD, i, str(tmpdir)]))
 
 
 def test_cwd_global(ltx_helper, tmpdir):
     """
     Test CWD command on single slot.
     """
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_CWD)
-    cmd += msgpack.packb(ALL_SLOTS)
-    cmd += msgpack.packb(str(tmpdir))
-
-    ltx_helper.send(cmd)
+    ltx_helper.send(msgpack.packb([LTX_CWD, ALL_SLOTS, str(tmpdir)]))
 
 
 def test_cwd_out_of_bound_error(ltx_helper, tmpdir):
     """
     Test CWD command on out-of-bound slot.
     """
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_CWD)
-    cmd += msgpack.packb(MAX_SLOTS + 1)
-    cmd += msgpack.packb(str(tmpdir))
-
-    ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("Out of bound slot ID"))
+    ltx_helper.send(msgpack.packb(
+        [LTX_CWD, MAX_SLOTS + 1, str(tmpdir)]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
 
 
 def test_cwd_dir_does_not_exist_error(ltx_helper):
     """
     Test CWD command with non-existing directory.
     """
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_CWD)
-    cmd += msgpack.packb(0)
-    cmd += msgpack.packb("/this/dir/doesnt/exist")
-
-    ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("CWD directory does not exist"))
+    ltx_helper.send(msgpack.packb(
+        [LTX_CWD, 0, "/this/dir/doesnt/exist"]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb(
+        [LTX_ERROR, "CWD directory does not exist"]))
 
 
 def test_exec(ltx_helper):
@@ -454,64 +352,45 @@ def test_exec(ltx_helper):
     start_t = time.monotonic_ns()
 
     # run command
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("uname")
-
-    ltx_helper.send(cmd)
+    ltx_helper.send(msgpack.packb([LTX_EXEC, slot, "uname"]))
 
     # read logs
-    ltx_helper.expect_exact(msgpack.packb(LTX_LOG))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-    ltx_helper.expect_exact(msgpack.packb('Linux\n'))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_LOG
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == 'Linux\n'
 
     # read result
-    ltx_helper.expect_exact(msgpack.packb(LTX_RESULT))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb(os.CLD_EXITED))
-    ltx_helper.expect_exact(msgpack.packb(0))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_RESULT
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == os.CLD_EXITED
+    assert reply[4] == 0
 
 
 def test_exec_out_of_bound_error(ltx_helper):
     """
     Test EXEC command on out-of-bounds slot.
     """
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(MAX_SLOTS + 1)
-    cmd += msgpack.packb("test")
-
-    ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("Out of bound slot ID"))
+    ltx_helper.send(msgpack.packb(
+        [LTX_EXEC, MAX_SLOTS + 1, "test"]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
 
 
 def test_exec_reserved_error(ltx_helper):
     """
     Test EXEC command when the same slot is used two times.
     """
-    slot = 0
-
     cmd = bytes()
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("sleep 0.3")
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("echo ciao")
+    cmd += msgpack.packb([LTX_EXEC, 0, "sleep 0.3"])
+    cmd += msgpack.packb([LTX_EXEC, 0, "echo ciao"])
 
     ltx_helper.send(cmd)
 
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("Execution slot is reserved"))
+    ltx_helper.expect_exact(msgpack.packb(
+        [LTX_ERROR, "Execution slot is reserved"]))
 
 
 def test_exec_env_local(ltx_helper):
@@ -522,34 +401,25 @@ def test_exec_env_local(ltx_helper):
     slot = 0
 
     cmd = bytes()
-    cmd += msgpack.packb(LTX_ENV)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("MYKEY")
-    cmd += msgpack.packb("MYVAL")
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("echo -n $MYKEY")
+    cmd += msgpack.packb([LTX_ENV, slot, "MYKEY", "MYVAL"])
+    cmd += msgpack.packb([LTX_EXEC, slot, "echo -n $MYKEY"])
 
     ltx_helper.send(cmd)
 
     # read logs
-    ltx_helper.expect_exact(msgpack.packb(LTX_LOG))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb('MYVAL'))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_LOG
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == 'MYVAL'
 
     # read result
-    ltx_helper.expect_exact(msgpack.packb(LTX_RESULT))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb(os.CLD_EXITED))
-    ltx_helper.expect_exact(msgpack.packb(0))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_RESULT
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == os.CLD_EXITED
+    assert reply[4] == 0
 
 
 def test_exec_env_global(ltx_helper):
@@ -560,34 +430,25 @@ def test_exec_env_global(ltx_helper):
     slot = 0
 
     cmd = bytes()
-    cmd += msgpack.packb(LTX_ENV)
-    cmd += msgpack.packb(ALL_SLOTS)
-    cmd += msgpack.packb("MYKEY")
-    cmd += msgpack.packb("MYVAL")
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("echo -n $MYKEY")
+    cmd += msgpack.packb([LTX_ENV, ALL_SLOTS, "MYKEY", "MYVAL"])
+    cmd += msgpack.packb([LTX_EXEC, slot, "echo -n $MYKEY"])
 
     ltx_helper.send(cmd)
 
     # read logs
-    ltx_helper.expect_exact(msgpack.packb(LTX_LOG))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb('MYVAL'))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_LOG
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == 'MYVAL'
 
     # read result
-    ltx_helper.expect_exact(msgpack.packb(LTX_RESULT))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb(os.CLD_EXITED))
-    ltx_helper.expect_exact(msgpack.packb(0))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_RESULT
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == os.CLD_EXITED
+    assert reply[4] == 0
 
 
 def test_exec_cwd_local(ltx_helper, tmpdir):
@@ -598,33 +459,25 @@ def test_exec_cwd_local(ltx_helper, tmpdir):
     slot = 0
 
     cmd = bytes()
-    cmd += msgpack.packb(LTX_CWD)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb(str(tmpdir))
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("echo -n $PWD")
+    cmd += msgpack.packb([LTX_CWD, slot, str(tmpdir)])
+    cmd += msgpack.packb([LTX_EXEC, slot, "echo -n $PWD"])
 
     ltx_helper.send(cmd)
 
     # read logs
-    ltx_helper.expect_exact(msgpack.packb(LTX_LOG))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb(str(tmpdir)))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_LOG
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == str(tmpdir)
 
     # read result
-    ltx_helper.expect_exact(msgpack.packb(LTX_RESULT))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb(os.CLD_EXITED))
-    ltx_helper.expect_exact(msgpack.packb(0))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_RESULT
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == os.CLD_EXITED
+    assert reply[4] == 0
 
 
 def test_exec_cwd_global(ltx_helper, tmpdir):
@@ -635,33 +488,25 @@ def test_exec_cwd_global(ltx_helper, tmpdir):
     slot = 0
 
     cmd = bytes()
-    cmd += msgpack.packb(LTX_CWD)
-    cmd += msgpack.packb(ALL_SLOTS)
-    cmd += msgpack.packb(str(tmpdir))
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("echo -n $PWD")
+    cmd += msgpack.packb([LTX_CWD, ALL_SLOTS, str(tmpdir)])
+    cmd += msgpack.packb([LTX_EXEC, slot, "echo -n $PWD"])
 
     ltx_helper.send(cmd)
 
     # read logs
-    ltx_helper.expect_exact(msgpack.packb(LTX_LOG))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb(str(tmpdir)))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_LOG
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == str(tmpdir)
 
     # read result
-    ltx_helper.expect_exact(msgpack.packb(LTX_RESULT))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb(os.CLD_EXITED))
-    ltx_helper.expect_exact(msgpack.packb(0))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_RESULT
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == os.CLD_EXITED
+    assert reply[4] == 0
 
 
 def test_kill(ltx_helper):
@@ -672,54 +517,31 @@ def test_kill(ltx_helper):
     start_t = time.monotonic_ns()
 
     # run command
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_EXEC)
-    cmd += msgpack.packb(slot)
-    cmd += msgpack.packb("sleep 3")
-
-    ltx_helper.send(cmd)
+    ltx_helper.send(msgpack.packb([LTX_EXEC, slot, "sleep 3"]))
 
     # kill command
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_KILL)
-    cmd += msgpack.packb(slot)
-
-    ltx_helper.send(cmd)
+    ltx_helper.send(msgpack.packb([LTX_KILL, slot]))
 
     # read result
-    ltx_helper.expect_exact(msgpack.packb(LTX_RESULT))
-    ltx_helper.expect_exact(msgpack.packb(slot))
-
-    time_ns = ltx_helper.unpack_next()
-    assert start_t < time_ns < time.monotonic_ns()
-
-    ltx_helper.expect_exact(msgpack.packb(os.CLD_KILLED))
-    ltx_helper.expect_exact(msgpack.packb(signal.SIGKILL))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_RESULT
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == os.CLD_KILLED
+    assert reply[4] == signal.SIGKILL
 
 
 def test_kill_out_of_bound_error(ltx_helper):
     """
     Test KILL command with out-of-bound slot.
     """
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_KILL)
-    cmd += msgpack.packb(MAX_SLOTS)
-
-    ltx_helper.send(cmd, check_echo=False)
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("Out of bound slot ID"))
+    ltx_helper.send(msgpack.packb([LTX_KILL, MAX_SLOTS]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
 
 
 def test_kill_non_exec_slot_error(ltx_helper):
     """
     Test KILL command on a non-executing slot.
     """
-    cmd = bytes()
-    cmd += msgpack.packb(LTX_KILL)
-    cmd += msgpack.packb(0)
-
-    ltx_helper.send(cmd, check_echo=False)
-
-    ltx_helper.expect_exact(msgpack.packb(LTX_ERROR))
-    ltx_helper.expect_exact(msgpack.packb("No command running"))
+    ltx_helper.send(msgpack.packb([LTX_KILL, 0]), check_echo=False)
+    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "No command running"]))
