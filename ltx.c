@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -71,10 +72,34 @@ struct ltx_env
 	char value[MAX_STRING_LEN];
 };
 
+enum ltx_event_type
+{
+	/* received on stdin event */
+	LTX_EVT_STDIN,
+
+	/* received on stdout event */
+	LTX_EVT_STDOUT,
+
+	/* received on children signal event */
+	LTX_EVT_SIGNAL,
+};
+
+struct ltx_event
+{
+	/* LTX event type */
+	enum ltx_event_type type;
+
+	/* slot id of the relative event */
+	uint64_t slot_id;
+
+	/* file descriptor associated with event */
+	int fd;
+};
+
 struct ltx_slot
 {
-	/* reserved if 1, 0 otherwise */
-	int reserved;
+	/* used if 1, 0 otherwise */
+	int used;
 
 	/* process id */
 	pid_t pid;
@@ -84,6 +109,12 @@ struct ltx_slot
 
 	/* current working directory */
 	char cwd[PATH_MAX];
+
+	/* stdin buffer */
+	uint8_t buffer[READ_BUFFER_SIZE];
+
+	/* ltx event associated with this object */
+	struct ltx_event event;
 };
 
 struct ltx_table
@@ -120,30 +151,6 @@ struct ltx_session
 
 	/* current ltx execution table */
 	struct ltx_table table;
-};
-
-enum ltx_event_type
-{
-	/* received on stdin event */
-	LTX_EVT_STDIN,
-
-	/* received on stdout event */
-	LTX_EVT_STDOUT,
-
-	/* received on children signal event */
-	LTX_EVT_SIGNAL,
-};
-
-struct ltx_event
-{
-	/* LTX event type */
-	enum ltx_event_type type;
-
-	/* slot id of the relative event */
-	uint64_t slot_id;
-
-	/* file descriptor associated with event */
-	int fd;
 };
 
 static void ltx_message_reserve_next(struct ltx_session *session)
@@ -557,12 +564,12 @@ static struct ltx_slot *ltx_slot_reserve(
 
 	struct ltx_slot *exec_slot = session->table.slots + slot_id;
 
-	if (exec_slot->reserved) {
+	if (exec_slot->used) {
 		ltx_handle_error(session, "Execution slot is reserved", 0);
 		return NULL;
 	}
 
-	exec_slot->reserved = 1;
+	exec_slot->used = 1;
 
 	return exec_slot;
 }
@@ -575,8 +582,9 @@ static void ltx_slot_free(struct ltx_session *session, const uint64_t slot_id)
 	struct ltx_slot *exec_slot;
 
 	exec_slot = session->table.slots + slot_id;
-	memset(exec_slot, 0, sizeof(struct ltx_slot));
+	close(exec_slot->event.fd);
 
+	memset(exec_slot, 0, sizeof(struct ltx_slot));
 	exec_slot->pid = -1;
 }
 
@@ -631,13 +639,12 @@ static void ltx_handle_exec(struct ltx_session *session)
 		return;
 	}
 
-	struct ltx_event evt = {
-		.type = LTX_EVT_STDOUT,
-		.fd = pipefd[0],
-		.slot_id = slot_id,
-	};
+	/* setup event */
+	exec_slot->event.type = LTX_EVT_STDOUT;
+	exec_slot->event.slot_id = slot_id;
+	exec_slot->event.fd = pipefd[0];
 
-	ltx_epoll_add(session, &evt, EPOLLIN | EPOLLET);
+	assert(!ltx_epoll_add(session, &exec_slot->event, EPOLLIN));
 
 	/* run the command */
 	pid_t pid = fork();
@@ -653,21 +660,19 @@ static void ltx_handle_exec(struct ltx_session *session)
 		return;
 	}
 
-	/* setup child */
-	close(STDERR_FILENO);
-	close(STDOUT_FILENO);
-	close(pipefd[0]);
-
 	/* redirect stdout to pipe */
+	if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
+		ltx_handle_error(session, "dup2() stdout", 1);
+		exit(1);
+	}
+
 	if (dup2(pipefd[1], STDERR_FILENO) == -1) {
 		ltx_handle_error(session, "dup2() stderr", 1);
 		exit(1);
 	}
 
-	if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
-		ltx_handle_error(session, "dup2() stdout", 1);
-		exit(1);
-	}
+	close(pipefd[0]);
+	close(pipefd[1]);
 
 	/* set global environment vars */
 	for (unsigned i = 0; i < MAX_ENVS; i++) {
@@ -717,39 +722,6 @@ static void ltx_handle_exec(struct ltx_session *session)
 	_exit(0);
 }
 
-static void ltx_handle_log(struct ltx_session *session, struct ltx_event *evt)
-{
-	if (session->pid != getpid())
-		return;
-
-	assert(evt->slot_id >= 0);
-	assert(evt->slot_id < MAX_SLOTS);
-
-	int ret = read(evt->fd, session->stdin_buffer, READ_BUFFER_SIZE);
-	if (ret == -1) {
-		ltx_handle_error(session, "read() log", 1);
-		return;
-	}
-
-	if (!ret) {
-		ltx_handle_error(session, "Reached stdin EOF", 0);
-		return;
-	}
-
-	/* ensure that string is null-terminated */
-	session->stdin_buffer[ret] = '\0';
-
-	struct mp_message msgs[4];
-
-	mp_message_uint(&msgs[0], LTX_LOG);
-	mp_message_uint(&msgs[1], evt->slot_id);
-	mp_message_uint(&msgs[2], ltx_gettime());
-	mp_message_str(&msgs[3], session->stdin_buffer);
-
-	ltx_send_messages(session, msgs, 4);
-	ltx_message_reset(session);
-}
-
 static void ltx_handle_result(
 	struct ltx_session *session,
 	uint64_t slot_id,
@@ -771,45 +743,76 @@ static void ltx_handle_result(
 	ltx_message_reset(session);
 }
 
-static void ltx_send_result(struct ltx_session *session, struct ltx_event *evt)
+static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 {
-	assert(evt->fd > 0);
+	if (session->pid != getpid())
+		return 0;
 
-	struct signalfd_siginfo si[MAX_SLOTS];
+	assert(slot_id >= 0);
+	assert(slot_id < MAX_SLOTS);
 
-	int ret = read(evt->fd, si, sizeof(si[0]) * MAX_SLOTS);
+	struct ltx_slot *slot = session->table.slots + slot_id;
+
+	int ret = read(slot->event.fd, slot->buffer, READ_BUFFER_SIZE);
 	if (ret == -1) {
-		ltx_handle_error(session, "read() error", 1);
-		return;
+		ltx_handle_error(session, "read() log", 1);
+		return 0;
 	}
 
-	/* iterate for all signals */
-	int sig_num = ret / sizeof(si[0]);
+	if (!ret)
+		return 0;
+
+	/* ensure that string is null-terminated */
+	slot->buffer[ret] = '\0';
+
+	struct mp_message msgs[4];
+
+	mp_message_uint(&msgs[0], LTX_LOG);
+	mp_message_uint(&msgs[1], slot_id);
+	mp_message_uint(&msgs[2], ltx_gettime());
+	mp_message_str(&msgs[3], slot->buffer);
+
+	ltx_send_messages(session, msgs, 4);
+	ltx_message_reset(session);
+
+	return 1;
+}
+
+static void ltx_send_result(struct ltx_session *session)
+{
 	struct ltx_slot *slot;
 	uint64_t slot_id;
+	siginfo_t info;
 
-	for (unsigned i = 0; i < sig_num; i++) {
-		/* search for slot_id */
-		for (slot_id = 0; slot_id < MAX_SLOTS; slot_id++) {
-			slot = session->table.slots + slot_id;
-			if (si[i].ssi_pid == slot->pid)
-				break;
-		}
+	for (slot_id = 0; slot_id < MAX_SLOTS; slot_id++) {
+		slot = session->table.slots + slot_id;
+		if (slot->pid == -1)
+			continue;
 
-		if (slot_id == MAX_SLOTS) {
-			ltx_handle_error(session, "PID not found", 0);
+		if (waitid(P_PID, slot->pid, &info, WEXITED) == -1) {
+			ltx_handle_error(session, "waitid() error", 1);
 			return;
 		}
 
-		/* send result */
+		/* drain the child stdout before sending RESULT reply */
+		while (ltx_check_stdout(session, slot_id)) {}
+
 		ltx_handle_result(
 			session,
 			slot_id,
-			si[slot_id].ssi_code,
-			si[slot_id].ssi_status);
+			info.si_code,
+			info.si_status);
 
 		ltx_slot_free(session, slot_id);
 	}
+}
+
+static void ltx_handle_log(struct ltx_session *session, struct ltx_event *evt)
+{
+	if (session->pid != getpid())
+		return;
+
+	ltx_check_stdout(session, evt->slot_id);
 }
 
 static void ltx_handle_kill(struct ltx_session *session)
@@ -1062,12 +1065,12 @@ static void ltx_start_event_loop(struct ltx_session *session)
 	}
 
 	/* setup stdin file handling */
-	struct ltx_event ltx_evt_stdin = {
+	struct ltx_event evt_stdin = {
 		.type = LTX_EVT_STDIN,
 		.fd = session->stdin_fd,
 		.slot_id = -1,
 	};
-	assert(!ltx_epoll_add(session, &ltx_evt_stdin, EPOLLIN));
+	assert(!ltx_epoll_add(session, &evt_stdin, EPOLLIN));
 
 	/* setup children signals */
 	sigset_t mask;
@@ -1078,12 +1081,12 @@ static void ltx_start_event_loop(struct ltx_session *session)
 	int fd_sig = signalfd(-1, &mask, SFD_CLOEXEC);
 	assert(fd_sig != -1);
 
-	struct ltx_event ltx_evt_sig = {
+	struct ltx_event evt_sig = {
 		.type = LTX_EVT_SIGNAL,
 		.fd = fd_sig,
 		.slot_id = -1,
 	};
-	assert(!ltx_epoll_add(session, &ltx_evt_sig, EPOLLIN));
+	assert(!ltx_epoll_add(session, &evt_sig, EPOLLIN));
 
 	/* loop through epoll events */
 	struct epoll_event events[MAX_EVENTS];
@@ -1116,7 +1119,7 @@ static void ltx_start_event_loop(struct ltx_session *session)
 				ltx_handle_log(session, ltx_evt);
 				break;
 			case LTX_EVT_SIGNAL:
-				ltx_send_result(session, ltx_evt);
+				ltx_send_result(session);
 				break;
 			default:
 				break;

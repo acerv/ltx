@@ -370,6 +370,34 @@ def test_exec(ltx_helper):
     assert reply[4] == 0
 
 
+def test_exec_multiple(ltx_helper):
+    """
+    Test EXEC command on single slot.
+    """
+    start_t = time.monotonic_ns()
+
+    # run command
+    cmd = bytes()
+    for slot in range(0, MAX_SLOTS):
+        cmd += msgpack.packb([LTX_EXEC, slot, "uname"])
+
+    ltx_helper.send(cmd)
+
+    # read LOG + RESULT for each EXEC
+    for _ in range(0, 2 * MAX_SLOTS):
+        reply = ltx_helper.unpack_next()
+
+        assert reply[0] in (LTX_RESULT, LTX_LOG)
+        assert reply[1] in range(0, MAX_SLOTS)
+        assert start_t < reply[2] < time.monotonic_ns()
+
+        if reply[0] == LTX_RESULT:
+            assert reply[3] == os.CLD_EXITED
+            assert reply[4] == 0
+        elif reply[0] == LTX_LOG:
+            assert reply[3] == 'Linux\n'
+
+
 def test_exec_out_of_bound_error(ltx_helper):
     """
     Test EXEC command on out-of-bounds slot.
