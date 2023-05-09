@@ -444,6 +444,59 @@ START_TEST(test_mp_write_bin32)
 }
 END_TEST
 
+START_TEST(test_mp_message_fixarray)
+{
+	struct mp_message msg;
+
+	mp_message_init(&msg);
+
+	for (size_t i = 1; i < 16; i++) {
+		mp_message_array(&msg, i);
+
+		ck_assert_ptr_nonnull(msg.data);
+		ck_assert_double_eq(msg.data[0], MP_FIXARRAY0 + i);
+	}
+
+	mp_message_destroy(&msg);
+}
+END_TEST
+
+START_TEST(test_mp_message_array16)
+{
+	struct mp_message msg;
+	uint8_t data[2];
+	uint64_t val = 0xfffa;
+
+	mp_message_init(&msg);
+	mp_message_array(&msg, val);
+
+	ck_assert_ptr_nonnull(msg.data);
+
+	mp_write_number(val, data, 2);
+	ck_assert_mem_eq(((uint8_t []) { 0xff, 0xfa }), data, 2);
+
+	mp_message_destroy(&msg);
+}
+END_TEST
+
+START_TEST(test_mp_message_array32)
+{
+	struct mp_message msg;
+	uint8_t data[4];
+	uint64_t val = 0xfffffafa;
+
+	mp_message_init(&msg);
+	mp_message_array(&msg, val);
+
+	ck_assert_ptr_nonnull(msg.data);
+
+	mp_write_number(val, data, 4);
+	ck_assert_mem_eq(((uint8_t []) { 0xff, 0xff, 0xfa, 0xfa }), data, 4);
+
+	mp_message_destroy(&msg);
+}
+END_TEST
+
 Suite *msgpack_message_suite(void)
 {
 	Suite *s;
@@ -551,6 +604,18 @@ Suite *msgpack_message_suite(void)
 
 	tc = tcase_create("test_mp_write_bin32");
 	tcase_add_test(tc, test_mp_write_bin32);
+	suite_add_tcase(s, tc);
+
+	tc = tcase_create("test_mp_message_fixarray");
+	tcase_add_test(tc, test_mp_message_fixarray);
+	suite_add_tcase(s, tc);
+
+	tc = tcase_create("test_mp_message_array16");
+	tcase_add_test(tc, test_mp_message_array16);
+	suite_add_tcase(s, tc);
+
+	tc = tcase_create("test_mp_message_array32");
+	tcase_add_test(tc, test_mp_message_array32);
 	suite_add_tcase(s, tc);
 
 	return s;

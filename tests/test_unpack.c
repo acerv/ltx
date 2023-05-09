@@ -262,6 +262,136 @@ START_TEST(test_unpack_bin32)
 }
 END_TEST
 
+START_TEST(test_unpack_fixarray)
+{
+	size_t offset;
+	struct mp_message msg;
+	struct mp_unpacker unpacker;
+
+	mp_message_init(&msg);
+	mp_unpacker_init(&unpacker);
+	mp_unpacker_reserve(&unpacker, &msg);
+
+	uint8_t data[] = { MP_FIXARRAY0 + 13 };
+
+	offset = mp_unpacker_feed(&unpacker, data, 1);
+
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_SUCCESS);
+	ck_assert_uint_eq(offset, 1);
+	ck_assert_uint_eq(msg.data[0], MP_FIXARRAY0 + 13);
+	ck_assert_uint_eq(msg.length, 1);
+	ck_assert_mem_eq(msg.data, data, 1);
+
+	mp_message_destroy(&msg);
+}
+END_TEST
+
+START_TEST(test_unpack_array16)
+{
+	size_t offset;
+	struct mp_message msg;
+	struct mp_unpacker unpacker;
+
+	mp_message_init(&msg);
+	mp_unpacker_init(&unpacker);
+	mp_unpacker_reserve(&unpacker, &msg);
+
+	uint8_t data[] = { MP_ARRAY16, 0xfa, 0xaa };
+
+	/* unpack first 2 bytes */
+	offset = mp_unpacker_feed(&unpacker, data, 2);
+
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_NEED_DATA);
+	ck_assert_uint_eq(offset, 2);
+	ck_assert_uint_eq(msg.data[0], MP_ARRAY16);
+	ck_assert_uint_eq(msg.length, 3);
+	ck_assert_mem_eq(msg.data, data, 2);
+
+	/* unpack last 1 byte */
+	offset += mp_unpacker_feed(&unpacker, data + 2, 1);
+
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_SUCCESS);
+	ck_assert_uint_eq(offset, 3);
+	ck_assert_uint_eq(msg.data[0], MP_ARRAY16);
+	ck_assert_uint_eq(msg.length, 3);
+	ck_assert_mem_eq(msg.data, data, 3);
+
+	mp_message_destroy(&msg);
+}
+END_TEST
+
+START_TEST(test_unpack_array32)
+{
+	size_t offset;
+	struct mp_message msg;
+	struct mp_unpacker unpacker;
+
+	mp_message_init(&msg);
+	mp_unpacker_init(&unpacker);
+	mp_unpacker_reserve(&unpacker, &msg);
+
+	uint8_t data[] = { MP_ARRAY32, 0xfa, 0xaa, 0xf1, 0xbb };
+
+	/* unpack first 3 bytes */
+	offset = mp_unpacker_feed(&unpacker, data, 3);
+
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_NEED_DATA);
+	ck_assert_uint_eq(offset, 3);
+	ck_assert_uint_eq(msg.data[0], MP_ARRAY32);
+	ck_assert_uint_eq(msg.length, 5);
+	ck_assert_mem_eq(msg.data, data, 3);
+
+	/* unpack last 2 byte */
+	offset += mp_unpacker_feed(&unpacker, data + 3, 2);
+
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_SUCCESS);
+	ck_assert_uint_eq(offset, 5);
+	ck_assert_uint_eq(msg.data[0], MP_ARRAY32);
+	ck_assert_uint_eq(msg.length, 5);
+	ck_assert_mem_eq(msg.data, data, 5);
+
+	mp_message_destroy(&msg);
+}
+END_TEST
+
+START_TEST(test_unpack_array_data)
+{
+	size_t offset;
+	struct mp_message msg;
+	struct mp_unpacker unpacker;
+
+	mp_message_init(&msg);
+	mp_unpacker_init(&unpacker);
+	mp_unpacker_reserve(&unpacker, &msg);
+
+	uint8_t data[] = {
+		MP_FIXARRAY0 + 2,
+		MP_FIXINT0 + 0x10,
+		MP_FIXINT0 + 0x11
+	};
+
+	offset = mp_unpacker_feed(&unpacker, data, 1);
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_SUCCESS);
+	ck_assert_uint_eq(offset, 1);
+	ck_assert_uint_eq(msg.data[0], MP_FIXARRAY0 + 2);
+	ck_assert_uint_eq(msg.length, 1);
+
+	offset += mp_unpacker_feed(&unpacker, data + 1, 1);
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_SUCCESS);
+	ck_assert_uint_eq(offset, 2);
+	ck_assert_uint_eq(msg.data[0], MP_FIXINT0 + 0x10);
+	ck_assert_uint_eq(msg.length, 1);
+
+	offset += mp_unpacker_feed(&unpacker, data + 2, 1);
+	ck_assert_int_eq(mp_unpacker_status(&unpacker), MP_UNPACKER_SUCCESS);
+	ck_assert_uint_eq(offset, 3);
+	ck_assert_uint_eq(msg.data[0], MP_FIXINT0 + 0x11);
+	ck_assert_uint_eq(msg.length, 1);
+
+	mp_message_destroy(&msg);
+}
+END_TEST
+
 START_TEST(test_unpack_multiple)
 {
 	struct mp_message msg;
@@ -385,6 +515,22 @@ Suite *msgpack_suite(void)
 
 	tc = tcase_create("test_unpack_multiple");
 	tcase_add_test(tc, test_unpack_multiple);
+	suite_add_tcase(s, tc);
+
+	tc = tcase_create("test_unpack_fixarray");
+	tcase_add_test(tc, test_unpack_fixarray);
+	suite_add_tcase(s, tc);
+
+	tc = tcase_create("test_unpack_array16");
+	tcase_add_test(tc, test_unpack_array16);
+	suite_add_tcase(s, tc);
+
+	tc = tcase_create("test_unpack_array32");
+	tcase_add_test(tc, test_unpack_array32);
+	suite_add_tcase(s, tc);
+
+	tc = tcase_create("test_unpack_array_data");
+	tcase_add_test(tc, test_unpack_array_data);
 	suite_add_tcase(s, tc);
 
 	return s;

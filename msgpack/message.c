@@ -62,6 +62,11 @@ int mp_message_type(struct mp_message *msg)
 	case MP_BIN32:
 		type = MP_BINARY;
 		break;
+	case MP_FIXARRAY0 ... MP_FIXARRAY15:
+	case MP_ARRAY16:
+	case MP_ARRAY32:
+		type = MP_ARRAY;
+		break;
 	default:
 		break;
 	}
@@ -77,6 +82,7 @@ size_t mp_message_base_size(const uint8_t type)
 
 	switch (type) {
 	case MP_FIXINT0 ... MP_FIXINT127:
+	case MP_FIXARRAY0 ... MP_FIXARRAY15:
 		base = 1;
 		break;
 	case MP_BIN8:
@@ -87,11 +93,13 @@ size_t mp_message_base_size(const uint8_t type)
 	case MP_BIN16:
 	case MP_STR16:
 	case MP_UINT16:
+	case MP_ARRAY16:
 		base = 3;
 		break;
 	case MP_BIN32:
 	case MP_STR32:
 	case MP_UINT32:
+	case MP_ARRAY32:
 		base = 5;
 		break;
 	case MP_UINT64:
@@ -119,6 +127,8 @@ size_t mp_message_full_size(struct mp_message *msg)
 	case MP_UINT64:
 	case MP_FIXSTR0 ... MP_FIXSTR31:
 	case MP_FIXINT0 ... MP_FIXINT127:
+	case MP_FIXARRAY0 ... MP_FIXARRAY15:
+	case MP_ARRAY16 ... MP_ARRAY32:
 		size += mp_message_base_size(msg->data[0]);
 		break;
 	case MP_BIN8:
@@ -298,4 +308,49 @@ uint8_t *mp_message_read_bin(struct mp_message *msg, size_t *size)
 	*size = msg->length - start;
 
 	return msg->data + start;
+}
+
+void mp_message_array(struct mp_message *msg, const size_t length)
+{
+	assert(msg);
+	assert(length >= 1);
+	assert(length <= 0xffffffff);
+
+	mp_message_init(msg);
+
+	if (length <= MP_FIXARRAY15) {
+		mp_message_alloc(msg, 1);
+		msg->data[0] = MP_FIXARRAY0 | length;
+		return;
+	}
+
+	int len;
+	uint8_t type;
+
+	if (length <= 0xffff) {
+		len = 2;
+		type = MP_ARRAY16;
+	} else {
+		len = 4;
+		type = MP_ARRAY32;
+	}
+
+	mp_message_alloc(msg, 1 + len);
+
+	msg->data[0] = type;
+	mp_write_number(length, msg->data + 1, len);
+}
+
+size_t mp_message_read_array_length(struct mp_message *msg)
+{
+	assert(msg);
+	assert(msg->data);
+
+	if (msg->data[0] >= MP_FIXARRAY0 && msg->data[0] <= MP_FIXARRAY15)
+		return (size_t)(msg->data[0] - MP_FIXARRAY0);
+
+	int bytes = msg->data[0] == MP_ARRAY16 ? 2 : 4;
+	uint64_t length = mp_read_number(msg->data + 1, bytes);
+
+	return length;
 }

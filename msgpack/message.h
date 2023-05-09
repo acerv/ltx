@@ -35,6 +35,10 @@ enum
 	MP_STR8 = 0xd9,
 	MP_STR16 = 0xda,
 	MP_STR32 = 0xdb,
+	MP_FIXARRAY0 = 0x90,
+	MP_FIXARRAY15 = 0x9f,
+	MP_ARRAY16 = 0xdc,
+	MP_ARRAY32 = 0xdd,
 };
 
 /* Type sets for msgpack types */
@@ -42,7 +46,8 @@ enum
 {
 	MP_NUMERIC,
 	MP_STRING,
-	MP_BINARY
+	MP_BINARY,
+	MP_ARRAY
 };
 
 /* Initialize message. */
@@ -55,6 +60,7 @@ void mp_message_destroy(struct mp_message *msg);
  * - MP_NUMERIC
  * - MP_STRING
  * - MP_BINARY
+ * - MP_ARRAY
  * Useful when we need to know data type before processing.
  */
 int mp_message_type(struct mp_message *msg);
@@ -88,5 +94,11 @@ void mp_message_bin(struct mp_message *msg, uint8_t *const data, const size_t si
 
 /* Return pointer to the first element of data. */
 uint8_t *mp_message_read_bin(struct mp_message *msg, size_t *size);
+
+/* Create an array of length. */
+void mp_message_array(struct mp_message *msg, const size_t length);
+
+/* Return number of elements inside the array. */
+size_t mp_message_read_array_length(struct mp_message *msg);
 
 #endif /* MSGPACK_MESSAGE_H */
