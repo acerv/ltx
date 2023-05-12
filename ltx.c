@@ -825,10 +825,8 @@ static void ltx_handle_kill(struct ltx_session *session)
 	}
 
 	struct ltx_slot *exec_slot = session->table.slots + slot_id;
-	if (exec_slot->pid == -1) {
-		ltx_handle_error(session, "No command running", 0);
+	if (exec_slot->pid == -1)
 		return;
-	}
 
 	int ret = kill(exec_slot->pid, SIGKILL);
 	if (ret == -1 && errno != ESRCH) {

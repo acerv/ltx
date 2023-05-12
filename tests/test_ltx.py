@@ -590,11 +590,3 @@ def test_kill_out_of_bound_error(ltx_helper):
     """
     ltx_helper.send(msgpack.packb([LTX_KILL, MAX_SLOTS]), check_echo=False)
     ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
-
-
-def test_kill_non_exec_slot_error(ltx_helper):
-    """
-    Test KILL command on a non-executing slot.
-    """
-    ltx_helper.send(msgpack.packb([LTX_KILL, 0]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "No command running"]))
