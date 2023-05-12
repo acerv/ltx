@@ -967,7 +967,8 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 		READ_BUFFER_SIZE);
 
 	if (size == -1) {
-		ltx_handle_error(session, "read() error", 1);
+		if (errno != EAGAIN)
+			ltx_handle_error(session, "read() error", 1);
 		return;
 	} else if (!size) {
 		ltx_handle_error(session, "Reached stdin EOF", 0);
