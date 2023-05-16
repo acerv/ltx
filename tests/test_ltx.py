@@ -376,40 +376,17 @@ def test_exec_multiple(ltx_helper):
     """
     start_t = time.monotonic_ns()
 
-    # run command
-    cmd = bytes()
-    for slot in range(0, MAX_SLOTS):
-        cmd += msgpack.packb([LTX_EXEC, slot, "uname"])
-
-    ltx_helper.send(cmd)
+    # run command. We add a little delay before command,
+    # so we avoid to obtain LOG when EXEC echo is sent
+    for slot in range(0, ALL_SLOTS):
+        ltx_helper.send(msgpack.packb([
+            LTX_EXEC,
+            slot,
+            "sleep 0.2 && uname"
+        ]))
 
     # read LOG + RESULT for each EXEC
     for _ in range(0, 2 * MAX_SLOTS):
-        reply = ltx_helper.unpack_next()
-
-        assert reply[0] in (LTX_RESULT, LTX_LOG)
-        assert reply[1] in range(0, MAX_SLOTS)
-        assert start_t < reply[2] < time.monotonic_ns()
-
-        if reply[0] == LTX_RESULT:
-            assert reply[3] == os.CLD_EXITED
-            assert reply[4] == 0
-        elif reply[0] == LTX_LOG:
-            assert reply[3] == 'Linux\n'
-
-
-def test_exec_multiple_delayed(ltx_helper):
-    """
-    Test EXEC command on multiple slots, running while others already started.
-    """
-    start_t = time.monotonic_ns()
-
-    ltx_helper.send(msgpack.packb([LTX_EXEC, 0, "sleep 0.3; uname"]))
-    ltx_helper.send(msgpack.packb([LTX_EXEC, 1, "sleep 0.3; uname"]))
-    ltx_helper.send(msgpack.packb([LTX_EXEC, 3, "sleep 0.3; uname"]))
-
-    # read LOG + RESULT for each EXEC
-    for _ in range(0, 3 * 2):
         reply = ltx_helper.unpack_next()
 
         assert reply[0] in (LTX_RESULT, LTX_LOG)
