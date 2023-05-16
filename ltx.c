@@ -402,6 +402,9 @@ static void ltx_handle_set_file(struct ltx_session *session)
 	char path[MAX_STRING_LEN];
 	ltx_read_string(session, session->ltx_message.data + 1, path);
 
+	ssize_t size;
+	void *data = mp_message_read_bin(session->ltx_message.data + 2, &size);
+
 	if (path[0] == '\0') {
 		ltx_handle_error(session, "Empty given path", 0);
 		return;
@@ -412,11 +415,6 @@ static void ltx_handle_set_file(struct ltx_session *session)
 		ltx_handle_error(session, "open() error", 1);
 		return;
 	}
-
-	ssize_t size;
-	void *data = mp_message_read_bin(session->ltx_message.data + 2, &size);
-	assert(data);
-	assert(size > 0);
 
 	ssize_t pos = 0, ret;
 	do {
@@ -621,6 +619,9 @@ static void ltx_handle_exec(struct ltx_session *session)
 		return;
 	}
 
+	char cmd[MAX_STRING_LEN];
+	ltx_read_string(session, session->ltx_message.data + 2, cmd);
+
 	/* echo back the command */
 	ltx_echo(session);
 
@@ -711,9 +712,6 @@ static void ltx_handle_exec(struct ltx_session *session)
 	}
 
 	/* execute the command */
-	char cmd[MAX_STRING_LEN];
-	ltx_read_string(session, session->ltx_message.data + 2, cmd);
-
 	if (execlp("sh", "sh", "-c", cmd, (char *) NULL) == -1) {
 		ltx_handle_error(session, "execlp() error", 1);
 		exit(1);
