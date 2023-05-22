@@ -452,6 +452,30 @@ def test_exec_env_local(ltx_helper):
     assert reply[4] == 0
 
 
+def test_exec_env_local_reset(ltx_helper):
+    """
+    Test EXEC command after setting environ variable in a single slot, then
+    reset it and check if variable is still defined.
+    """
+    start_t = time.monotonic_ns()
+    slot = 0
+
+    cmd = bytes()
+    cmd += msgpack.packb([LTX_ENV, slot, "MYKEY", "MYVAL"])
+    cmd += msgpack.packb([LTX_ENV, slot, "MYKEY", ""])
+    cmd += msgpack.packb([LTX_EXEC, slot, "echo -n $MYKEY"])
+
+    ltx_helper.send(cmd)
+
+    # no logs -> no LOG -> only result
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_RESULT
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == os.CLD_EXITED
+    assert reply[4] == 0
+
+
 def test_exec_env_global(ltx_helper):
     """
     Test EXEC command after setting global environ variable.
