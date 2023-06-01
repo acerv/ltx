@@ -101,4 +101,7 @@ void mp_message_array(struct mp_message *msg, const size_t length);
 /* Return number of elements inside the array. */
 size_t mp_message_read_array_length(struct mp_message *msg);
 
+/* Print message inside fd in JSON format */
+void mp_message_print(struct mp_message *msg, FILE *file);
+
 #endif /* MSGPACK_MESSAGE_H */

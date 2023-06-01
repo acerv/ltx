@@ -48,6 +48,13 @@
 /* maximum number char per string */
 #define MAX_STRING_LEN 4096
 
+/* Macro used to print messages */
+#ifdef DEBUG
+	#define LTX_PRINT_MESSAGE(x) mp_message_print(x, stderr)
+#else
+	#define LTX_PRINT_MESSAGE(x) {}
+#endif
+
 struct ltx_message
 {
 	/* type of ltx message (LTX_PING, LTX_ERROR, etc. )*/
@@ -174,10 +181,12 @@ static void ltx_message_reset(struct ltx_session *session)
 		session->ltx_message.data);
 }
 
-static inline void ltx_send_message(
+static void ltx_send_message(
 	struct ltx_session *session,
 	struct mp_message *msg)
 {
+	LTX_PRINT_MESSAGE(msg);
+
 	assert(write(
 		session->stdout_fd,
 		msg->data,
@@ -840,6 +849,8 @@ static void ltx_process_msg(struct ltx_session *session)
 {
 	struct ltx_message *msg = &session->ltx_message;
 	int reserve_next = 1;
+
+	LTX_PRINT_MESSAGE(msg->data + msg->curr);
 
 	if (msg->type == LTX_NONE) {
 		if (!msg->length) {

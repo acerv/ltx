@@ -8,6 +8,14 @@ all:
 		ltx.c \
 		-o ltx
 
+debug:
+	$(CC) $(CFLAGS) \
+		-D DEBUG \
+		msgpack/unpack.c \
+		msgpack/message.c \
+		ltx.c \
+		-o ltx
+
 test:
 	$(CC) $(CFLAGS) -lcheck \
 		msgpack/message.c \
