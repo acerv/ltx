@@ -82,7 +82,7 @@ struct ltx_env
 enum ltx_event_type
 {
 	/* received on stdin event */
-	LTX_EVT_STDIN,
+	LTX_EVT_STDIN = 0xa0,
 
 	/* received on stdout event */
 	LTX_EVT_STDOUT,

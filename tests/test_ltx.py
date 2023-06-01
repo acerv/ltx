@@ -117,7 +117,7 @@ def build_ltx():
     """
     Automatically build ltx service.
     """
-    subprocess.call("make")
+    subprocess.call(["make", "debug"])
     yield
     subprocess.call(["make", "clean"])
 
@@ -360,6 +360,39 @@ def test_exec(ltx_helper):
     assert reply[1] == slot
     assert start_t < reply[2] < time.monotonic_ns()
     assert reply[3] == 'Linux\n'
+
+    # read result
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_RESULT
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == os.CLD_EXITED
+    assert reply[4] == 0
+
+
+def test_exec_big_log(ltx_helper):
+    """
+    Test EXEC command on single slot generating a big stdout.
+    """
+    slot = 0
+    start_t = time.monotonic_ns()
+
+    # run command
+    data = "x"*2048
+    ltx_helper.send(msgpack.packb([LTX_EXEC, slot, f"echo -n {data}"]))
+
+    # read logs
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_LOG
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == "x"*1024
+
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_LOG
+    assert reply[1] == slot
+    assert start_t < reply[2] < time.monotonic_ns()
+    assert reply[3] == "x"*1024
 
     # read result
     reply = ltx_helper.unpack_next()
