@@ -1,3 +1,5 @@
 ltx
 transport.in
 .venv
+zig-cache
+zig-out
