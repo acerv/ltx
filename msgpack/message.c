@@ -358,6 +358,10 @@ size_t mp_message_read_array_length(struct mp_message *msg)
 void mp_message_print(struct mp_message *msg, FILE *file)
 {
 	size_t size;
+	char *str;
+	size_t i;
+	uint64_t val;
+	uint8_t *data;
 
 	fprintf(file, "{'length': '%lu', ", msg->length);
 
@@ -366,9 +370,9 @@ void mp_message_print(struct mp_message *msg, FILE *file)
 	case MP_STR8:
 	case MP_STR16:
 	case MP_STR32:
-		char *str = mp_message_read_str(msg, &size);
+		str = mp_message_read_str(msg, &size);
 		fprintf(file, "'type': 'string', 'data': '");
-		for (size_t i = 0; i < size; i++)
+		for (i = 0; i < size; i++)
 			fprintf(file, "%c", str[i]);
 		fprintf(file, "'");
 		break;
@@ -377,15 +381,15 @@ void mp_message_print(struct mp_message *msg, FILE *file)
 	case MP_UINT16:
 	case MP_UINT32:
 	case MP_UINT64:
-		uint64_t val = mp_message_read_uint(msg);
+		val = mp_message_read_uint(msg);
 		fprintf(file, "'type': 'int', 'data': '%lu'", val);
 		break;
 	case MP_BIN8:
 	case MP_BIN16:
 	case MP_BIN32:
-		uint8_t *data = mp_message_read_bin(msg, &size);
+		data = mp_message_read_bin(msg, &size);
 		fprintf(file, "'type': 'binary', 'data': '");
-		for (size_t i = 0; i < size; i++)
+		for (i = 0; i < size; i++)
 			fprintf(file, "0x%x ", data[i]);
 		fprintf(file, "'");
 		break;
@@ -397,7 +401,7 @@ void mp_message_print(struct mp_message *msg, FILE *file)
 		break;
 	default:
 		fprintf(file, "'type': 'unkown', 'data': '");
-		for (size_t i = 0; i < msg->length; i++)
+		for (i = 0; i < msg->length; i++)
 			fprintf(file, "0x%x ", msg->data[i]);
 		fprintf(file, "'");
 		break;
