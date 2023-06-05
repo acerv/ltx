@@ -198,3 +198,25 @@ Reply:
 
 
 [MessagePack]: https://github.com/msgpack/msgpack/blob/master/spec.md
+
+# Init and cross compile
+
+It is possible to cross compile LTX and run it as init. There is a
+script to do this and create an initrd suitable for direct booting in
+QEMU.
+
+## Making a Linux image
+
+The Linux kernel can be cross compiled with LLVM in the following way.
+
+```sh
+$ cd $linux_git_checkout
+$ make LLVM=1 ARCH=arm64 defconfig
+$ make LLVM=1 ARCH=arm64 menuconfig # Optional
+$ make LLVM=1 ARCH=arm64 -j$(nproc)
+$ cp arch/arm64/boot/Image.gz $ltx_cross_dir/kernel/arm64/
+```
+
+We need the `Image.gz` on ARM64, other architectures use different
+names. For example on x86 it is `bzImage`.
+
