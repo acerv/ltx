@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -g -Imsgpack
 
 all:
-	$(CC) $(CFLAGS) \
+	$(CC) $(CFLAGS) -Wall \
 		msgpack/unpack.c \
 		msgpack/message.c \
 		ltx.c \
