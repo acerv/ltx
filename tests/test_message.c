@@ -169,7 +169,7 @@ END_TEST
 START_TEST(test_mp_message_read_str)
 {
 	struct mp_message msg;
-	char data[] = {'c', 'i', 'a', 'o'};
+	char data[] = {'c', 'i', 'a', 'o', '\0'};
 	char *pos;
 
 	mp_message_init(&msg);
