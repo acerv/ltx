@@ -1,8 +1,8 @@
 CC = gcc
-CFLAGS = -g -Imsgpack
+CFLAGS = -Wall -g -Imsgpack
 
 all:
-	$(CC) $(CFLAGS) -Wall \
+	$(CC) $(CFLAGS) \
 		msgpack/unpack.c \
 		msgpack/message.c \
 		ltx.c \
