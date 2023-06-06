@@ -17,21 +17,24 @@ debug:
 		-o ltx
 
 test:
-	$(CC) $(CFLAGS) -lcheck \
+	$(CC) $(CFLAGS) \
 		msgpack/message.c \
 		tests/test_utils.c \
-		-o tests/test_utils
+		-o tests/test_utils \
+		`pkg-config --cflags --libs check`
 
-	$(CC) $(CFLAGS) -lcheck \
+	$(CC) $(CFLAGS) \
 		msgpack/message.c \
 		tests/test_message.c \
-		-o tests/test_message
+		-o tests/test_message \
+		`pkg-config --cflags --libs check`
 
-	$(CC) $(CFLAGS) -lcheck \
+	$(CC) $(CFLAGS) \
 		msgpack/message.c \
 		msgpack/unpack.c \
 		tests/test_unpack.c \
-		-o tests/test_unpack
+		-o tests/test_unpack \
+		`pkg-config --cflags --libs check`
 
 clean:
 	rm -f ltx tests/test_utils tests/test_message tests/test_unpack
