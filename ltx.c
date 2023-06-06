@@ -190,7 +190,7 @@ static void ltx_send_message(
 	assert(write(
 		session->stdout_fd,
 		msg->data,
-		msg->length) == msg->length);
+		msg->length) == (ssize_t)msg->length);
 }
 
 static void ltx_send_messages(
@@ -203,7 +203,7 @@ static void ltx_send_messages(
 	mp_message_array(&msg, count);
 	ltx_send_message(session, &msg);
 
-	for (unsigned i = 0; i < count; i++)
+	for (int i = 0; i < count; i++)
 		ltx_send_message(session, msgs + i);
 }
 
@@ -360,7 +360,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 		};
 
 		char *line = NULL;
-		while ((nread = getline(&line, &nread, stream)) != -1) {
+		while ((nread = (size_t)getline(&line, &nread, stream)) != (size_t)-1) {
 			mp_message_uint(&msgs[0], LTX_DATA);
 			mp_message_bin(&msgs[1], (uint8_t *)line, nread);
 
@@ -433,7 +433,7 @@ static void ltx_handle_set_file(struct ltx_session *session)
 			return;
 		}
 		pos += ret;
-	} while (pos < size);
+	} while (pos < (ssize_t)size);
 
 	close(fd);
 
@@ -494,7 +494,7 @@ static int ltx_env_set(
 static void ltx_handle_env(struct ltx_session *session)
 {
 	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
-	if (slot_id < 0 || slot_id > MAX_SLOTS) {
+	if (slot_id > MAX_SLOTS) {
 		ltx_handle_error(session, "Out of bound slot ID", 0);
 		return;
 	}
@@ -533,7 +533,7 @@ static void ltx_handle_env(struct ltx_session *session)
 static void ltx_handle_cwd(struct ltx_session *session)
 {
 	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
-	if (slot_id < 0 || slot_id > MAX_SLOTS) {
+	if (slot_id > MAX_SLOTS) {
 		ltx_handle_error(session, "Out of bound slot ID", 0);
 		return;
 	}
@@ -566,7 +566,6 @@ static struct ltx_slot *ltx_slot_reserve(
 	struct ltx_session *session,
 	const uint64_t slot_id)
 {
-	assert(slot_id >= 0);
 	assert(slot_id < MAX_SLOTS);
 
 	struct ltx_slot *exec_slot = session->table.slots + slot_id;
@@ -583,7 +582,6 @@ static struct ltx_slot *ltx_slot_reserve(
 
 static void ltx_slot_free(struct ltx_session *session, const uint64_t slot_id)
 {
-	assert(slot_id >= 0);
 	assert(slot_id < MAX_SLOTS);
 
 	struct ltx_slot *exec_slot;
@@ -623,7 +621,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 {
 	/* read execution message */
 	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
-	if (slot_id < 0 || slot_id >= MAX_SLOTS) {
+	if (slot_id >= MAX_SLOTS) {
 		ltx_handle_error(session, "Out of bound slot ID", 0);
 		return;
 	}
@@ -735,7 +733,6 @@ static void ltx_handle_result(
 	int ssi_code,
 	int ssi_status)
 {
-	assert(slot_id >= 0);
 	assert(slot_id < MAX_SLOTS);
 
 	struct mp_message msgs[5];
@@ -755,7 +752,6 @@ static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 	if (session->pid != getpid())
 		return 0;
 
-	assert(slot_id >= 0);
 	assert(slot_id < MAX_SLOTS);
 
 	struct ltx_slot *slot = session->table.slots + slot_id;
@@ -826,7 +822,7 @@ static void ltx_handle_kill(struct ltx_session *session)
 {
 	/* read message */
 	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
-	if (slot_id < 0 || slot_id >= MAX_SLOTS) {
+	if (slot_id >= MAX_SLOTS) {
 		ltx_handle_error(session, "Out of bound slot ID", 0);
 		return;
 	}
@@ -1007,7 +1003,7 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 		default:
 			break;
 		}
-	} while (offset && size > offset);
+	} while (offset && size > (ssize_t)offset);
 }
 
 static struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
@@ -1100,7 +1096,7 @@ static void ltx_start_event_loop(struct ltx_session *session)
 	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event *epoll_evt;
 	struct ltx_event *ltx_evt;
-	unsigned i;
+	int i;
 	int num;
 
 	while (1) {

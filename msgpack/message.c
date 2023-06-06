@@ -43,32 +43,32 @@ int mp_message_type(struct mp_message *msg)
 
 	int type = -1;
 
-	switch (msg->data[0]) {
-	case MP_FIXINT0 ... MP_FIXINT127:
-	case MP_UINT8:
-	case MP_UINT16:
-	case MP_UINT32:
-	case MP_UINT64:
+	if (msg->data[0] <= MP_FIXINT127 || \
+		msg->data[0] == MP_UINT8 ||
+		msg->data[0] == MP_UINT16 ||
+		msg->data[0] == MP_UINT32 ||
+		msg->data[0] == MP_UINT64)
+	{
 		type = MP_NUMERIC;
-		break;
-	case MP_FIXSTR0 ... MP_FIXSTR31:
-	case MP_STR8:
-	case MP_STR16:
-	case MP_STR32:
+	}
+	else if ((msg->data[0] >= MP_FIXSTR0 && msg->data[0] <= MP_FIXSTR31) || \
+		msg->data[0] == MP_STR8 ||
+		msg->data[0] == MP_STR16 ||
+		msg->data[0] == MP_STR32)
+	{
 		type = MP_STRING;
-		break;
-	case MP_BIN8:
-	case MP_BIN16:
-	case MP_BIN32:
+	}
+	else if (msg->data[0] == MP_BIN8 ||
+		msg->data[0] == MP_BIN16 ||
+		msg->data[0] == MP_BIN32)
+	{
 		type = MP_BINARY;
-		break;
-	case MP_FIXARRAY0 ... MP_FIXARRAY15:
-	case MP_ARRAY16:
-	case MP_ARRAY32:
+	}
+	else if ((msg->data[0] >= MP_FIXARRAY0 && msg->data[0] <= MP_FIXARRAY15) || \
+		msg->data[0] == MP_ARRAY16 ||
+		msg->data[0] == MP_ARRAY32)
+	{
 		type = MP_ARRAY;
-		break;
-	default:
-		break;
 	}
 
 	assert(type != -1);
@@ -80,37 +80,39 @@ size_t mp_message_base_size(const uint8_t type)
 {
 	size_t base;
 
-	switch (type) {
-	case MP_FIXINT0 ... MP_FIXINT127:
-	case MP_FIXARRAY0 ... MP_FIXARRAY15:
+	if (type <= MP_FIXINT127 || \
+		(type >= MP_FIXARRAY0 && type <= MP_FIXARRAY15))
+	{
 		base = 1;
-		break;
-	case MP_BIN8:
-	case MP_STR8:
-	case MP_UINT8:
+	}
+	else if (type == MP_BIN8 || \
+		type == MP_STR8 || \
+		type == MP_UINT8)
+	{
 		base = 2;
-		break;
-	case MP_BIN16:
-	case MP_STR16:
-	case MP_UINT16:
-	case MP_ARRAY16:
+	}
+	else if (type == MP_BIN16 || \
+		type == MP_STR16 || \
+		type == MP_UINT16 || \
+		type == MP_ARRAY16)
+	{
 		base = 3;
-		break;
-	case MP_BIN32:
-	case MP_STR32:
-	case MP_UINT32:
-	case MP_ARRAY32:
+	}
+	else if (type == MP_BIN32 || \
+		type == MP_STR32 || \
+		type == MP_UINT32 || \
+		type == MP_ARRAY32)
+	{
 		base = 5;
-		break;
-	case MP_UINT64:
+	}
+	else if (type == MP_UINT64) {
 		base = 9;
-		break;
-	case MP_FIXSTR0 ... MP_FIXSTR31:
+	}
+	else if (type >= MP_FIXSTR0 && type <= MP_FIXSTR31) {
 		base = type - MP_FIXSTR0 + 1;
-		break;
-	default:
+	}
+	else {
 		base = 0;
-		break;
 	}
 
 	return base;
@@ -120,35 +122,35 @@ size_t mp_message_full_size(struct mp_message *msg)
 {
 	size_t size = 0;
 
-	switch (msg->data[0]) {
-	case MP_UINT8:
-	case MP_UINT16:
-	case MP_UINT32:
-	case MP_UINT64:
-	case MP_FIXSTR0 ... MP_FIXSTR31:
-	case MP_FIXINT0 ... MP_FIXINT127:
-	case MP_FIXARRAY0 ... MP_FIXARRAY15:
-	case MP_ARRAY16 ... MP_ARRAY32:
+	if (msg->data[0] == MP_UINT8 || \
+		msg->data[0] == MP_UINT16 || \
+		msg->data[0] == MP_UINT32 || \
+		msg->data[0] == MP_UINT64 || \
+		msg->data[0] <= MP_FIXINT127 || \
+		(msg->data[0] >= MP_FIXSTR0 && msg->data[0] <= MP_FIXSTR31) || \
+		(msg->data[0] >= MP_FIXARRAY0 && msg->data[0] <= MP_FIXARRAY15) || \
+		(msg->data[0] >= MP_ARRAY16 && msg->data[0] <= MP_ARRAY32))
+	{
 		size += mp_message_base_size(msg->data[0]);
-		break;
-	case MP_BIN8:
-	case MP_STR8:
+	}
+	else if (msg->data[0] == MP_BIN8 || msg->data[0] == MP_STR8)
+	{
 		size += 2;
 		size += mp_read_number(msg->data + 1, 1);
-		break;
-	case MP_BIN16:
-	case MP_STR16:
+	}
+	else if (msg->data[0] == MP_BIN16 || msg->data[0] == MP_STR16)
+	{
 		size += 3;
 		size += mp_read_number(msg->data + 1, 2);
-		break;
-	case MP_BIN32:
-	case MP_STR32:
+	}
+	else if (msg->data[0] == MP_BIN32 || msg->data[0] == MP_STR32)
+	{
 		size += 5;
 		size += mp_read_number(msg->data + 1, 4);
-		break;
-	default:
+	}
+	else
+	{
 		size = 0;
-		break;
 	}
 
 	return size;
@@ -365,46 +367,49 @@ void mp_message_print(struct mp_message *msg, FILE *file)
 
 	fprintf(file, "{'length': '%lu', ", msg->length);
 
-	switch (msg->data[0]) {
-	case MP_FIXSTR0 ... MP_FIXSTR31:
-	case MP_STR8:
-	case MP_STR16:
-	case MP_STR32:
+	if (msg->data[0] <= MP_FIXINT127 || \
+		msg->data[0] == MP_UINT8 ||
+		msg->data[0] == MP_UINT16 ||
+		msg->data[0] == MP_UINT32 ||
+		msg->data[0] == MP_UINT64)
+	{
+		val = mp_message_read_uint(msg);
+		fprintf(file, "'type': 'int', 'data': '%lu'", val);
+	}
+	else if ((msg->data[0] >= MP_FIXSTR0 && msg->data[0] <= MP_FIXSTR31) || \
+		msg->data[0] == MP_STR8 ||
+		msg->data[0] == MP_STR16 ||
+		msg->data[0] == MP_STR32)
+	{
 		str = mp_message_read_str(msg, &size);
 		fprintf(file, "'type': 'string', 'data': '");
 		for (i = 0; i < size; i++)
 			fprintf(file, "%c", str[i]);
 		fprintf(file, "'");
-		break;
-	case MP_FIXINT0 ... MP_FIXINT127:
-	case MP_UINT8:
-	case MP_UINT16:
-	case MP_UINT32:
-	case MP_UINT64:
-		val = mp_message_read_uint(msg);
-		fprintf(file, "'type': 'int', 'data': '%lu'", val);
-		break;
-	case MP_BIN8:
-	case MP_BIN16:
-	case MP_BIN32:
+	}
+	else if (msg->data[0] == MP_BIN8 ||
+		msg->data[0] == MP_BIN16 ||
+		msg->data[0] == MP_BIN32)
+	{
 		data = mp_message_read_bin(msg, &size);
 		fprintf(file, "'type': 'binary', 'data': '");
 		for (i = 0; i < size; i++)
 			fprintf(file, "0x%x ", data[i]);
 		fprintf(file, "'");
-		break;
-	case MP_FIXARRAY0 ... MP_FIXARRAY15:
-	case MP_ARRAY16:
-	case MP_ARRAY32:
+	}
+	else if ((msg->data[0] >= MP_FIXARRAY0 && msg->data[0] <= MP_FIXARRAY15) || \
+		msg->data[0] == MP_ARRAY16 ||
+		msg->data[0] == MP_ARRAY32)
+	{
 		size = mp_message_read_array_length(msg);
 		fprintf(file, "'type': 'array', 'data': '%lu'", size);
-		break;
-	default:
+	}
+	else
+	{
 		fprintf(file, "'type': 'unkown', 'data': '");
 		for (i = 0; i < msg->length; i++)
 			fprintf(file, "0x%x ", msg->data[i]);
 		fprintf(file, "'");
-		break;
 	}
 
 	fprintf(file, "}\n");

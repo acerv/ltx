@@ -401,7 +401,7 @@ START_TEST(test_unpack_multiple)
 	mp_unpacker_init(&unpacker);
 	mp_unpacker_reserve(&unpacker, &msg);
 
-	int size = 16;
+	size_t size = 16;
 	uint8_t data[] = {
 		MP_FIXSTR0 + 5,
 		'c', 'i', 'a', 'o', '\0',
