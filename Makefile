@@ -10,6 +10,7 @@ all:
 
 debug:
 	$(CC) $(CFLAGS) \
+		-g \
 		-D DEBUG \
 		msgpack/unpack.c \
 		msgpack/message.c \
