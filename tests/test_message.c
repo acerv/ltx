@@ -118,7 +118,7 @@ void test_mp_message_str(size_t len)
 		break;
 	}
 
-	char length[length_bytes];
+	uint8_t length[length_bytes];
 	mp_write_number(len, length, length_bytes);
 
 	struct mp_message msg;
@@ -188,9 +188,9 @@ END_TEST
 
 void test_mp_message_bin(const size_t len)
 {
-	char *data;
+	uint8_t *data;
 
-	data = (char*)malloc(len);
+	data = (uint8_t *)malloc(len);
 	memset(data, 'x', len);
 
 	int length_bytes = mp_read_number_bytes(len);
@@ -210,7 +210,7 @@ void test_mp_message_bin(const size_t len)
 		break;
 	}
 
-	char length[length_bytes];
+	uint8_t length[length_bytes];
 	mp_write_number(len, length, length_bytes);
 
 	struct mp_message msg;
@@ -304,7 +304,7 @@ void test_mp_write_uint(uint64_t number)
 		break;
 	}
 
-	char num_data[num_bytes];
+	uint8_t num_data[num_bytes];
 	mp_write_number(number, num_data, num_bytes);;
 
 	struct mp_message msg;
@@ -361,7 +361,7 @@ static void test_mp_write_data(uint8_t type, size_t data_size, int binary)
 	mp_message_init(&msg);
 
 	if (binary)
-		mp_message_bin(&msg, str, data_size);
+		mp_message_bin(&msg, (uint8_t *)str, data_size);
 	else
 		mp_message_str(&msg, str);
 
