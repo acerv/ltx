@@ -549,5 +549,5 @@ int main(void)
 	number_failed = srunner_ntests_failed(sr);
 	srunner_free(sr);
 
-	return number_failed == 0;
+	return number_failed != 0;
 }
