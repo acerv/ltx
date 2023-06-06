@@ -23,7 +23,7 @@ struct mp_unpacker
 {
 	struct mp_message *msg;
 	size_t pos;
-	size_t needs_length;
+	int needs_length;
 	int status;
 };
 

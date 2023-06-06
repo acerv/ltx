@@ -121,10 +121,14 @@ size_t mp_unpacker_feed(
 				data + counter,
 				size - counter);
 		}
+
+		/* sometimes message data is empty, but we save the length */
+		if (up->needs_length && up->pos == up->msg->length)
+			up->needs_length = 0;
 	}
 
 	if (up->status != MP_UNPACKER_TYPE_ERROR) {
-		if ((up->pos == up->msg->length) && (up->needs_length != 1)) {
+		if ((up->pos == up->msg->length) && up->needs_length == 0) {
 			up->status = MP_UNPACKER_SUCCESS;
 			up->needs_length = -1;
 			up->pos = 0;
