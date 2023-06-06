@@ -349,7 +349,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 	}
 
 	struct mp_message msgs[2];
-	ssize_t nread;
+	size_t nread;
 
 	if (from_proc) {
 		/* read /proc files has zero length. We need to use getline() */
@@ -362,7 +362,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 		char *line = NULL;
 		while ((nread = getline(&line, &nread, stream)) != -1) {
 			mp_message_uint(&msgs[0], LTX_DATA);
-			mp_message_bin(&msgs[1], line, nread);
+			mp_message_bin(&msgs[1], (uint8_t *)line, nread);
 
 			ltx_send_messages(session, msgs, 2);
 		}
@@ -376,7 +376,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 		}
 	} else {
 		/* regular files can use read() */
-		char data[READ_BUFFER_SIZE];
+		uint8_t data[READ_BUFFER_SIZE];
 		ssize_t pos = 0, nread;
 
 		do {
@@ -411,7 +411,7 @@ static void ltx_handle_set_file(struct ltx_session *session)
 	char path[MAX_STRING_LEN];
 	ltx_read_string(session, session->ltx_message.data + 1, path);
 
-	ssize_t size;
+	size_t size;
 	void *data = mp_message_read_bin(session->ltx_message.data + 2, &size);
 
 	if (path[0] == '\0') {
@@ -777,7 +777,7 @@ static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 	mp_message_uint(&msgs[0], LTX_LOG);
 	mp_message_uint(&msgs[1], slot_id);
 	mp_message_uint(&msgs[2], ltx_gettime());
-	mp_message_str(&msgs[3], slot->buffer);
+	mp_message_str(&msgs[3], (char *)slot->buffer);
 
 	ltx_send_messages(session, msgs, 4);
 	ltx_message_reset(session);

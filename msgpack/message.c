@@ -252,7 +252,7 @@ char *mp_message_read_str(struct mp_message *msg, size_t *size)
 
 	if (msg->data[0] >= MP_FIXSTR0 && msg->data[0] <= MP_FIXSTR31) {
 		*size = msg->data[0] - MP_FIXSTR0;
-		return msg->data + 1;
+		return (char *)msg->data + 1;
 	}
 
 	size_t start = mp_message_base_size(msg->data[0]);
@@ -260,7 +260,7 @@ char *mp_message_read_str(struct mp_message *msg, size_t *size)
 
 	*size = msg->length - start;
 
-	return msg->data + start;
+	return (char *)msg->data + start;
 }
 
 void mp_message_bin(
