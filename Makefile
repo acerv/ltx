@@ -1,41 +1,45 @@
 CC ?= gcc
-CFLAGS ?= -pedantic -W -Wall -Imsgpack
+CFLAGS ?= -pedantic -W -Wall
+INCLUDES = -Imsgpack
 
-all:
-	$(CC) $(CFLAGS) \
-		msgpack/unpack.c \
-		msgpack/message.c \
-		ltx.c \
-		-o ltx
+# tests build configuration
+TESTS_DEPS = \
+	msgpack/message.c \
+	msgpack/unpack.c
 
-debug:
-	$(CC) $(CFLAGS) \
-		-g \
-		-D DEBUG \
-		msgpack/unpack.c \
-		msgpack/message.c \
-		ltx.c \
-		-o ltx
+TESTS_SRCS = \
+	tests/test_message.c \
+	tests/test_unpack.c \
+	tests/test_utils.c
 
-test:
-	$(CC) $(CFLAGS) \
-		msgpack/message.c \
-		tests/test_utils.c \
-		-o tests/test_utils \
-		`pkg-config --cflags --libs check`
+TESTS = $(TESTS_SRCS:%.c=%)
 
-	$(CC) $(CFLAGS) \
-		msgpack/message.c \
-		tests/test_message.c \
-		-o tests/test_message \
-		`pkg-config --cflags --libs check`
+# target build configuration
+TARGET_SRCS = \
+	msgpack/message.c \
+	msgpack/unpack.c \
+	ltx.c
 
-	$(CC) $(CFLAGS) \
-		msgpack/message.c \
-		msgpack/unpack.c \
-		tests/test_unpack.c \
-		-o tests/test_unpack \
+TARGET = ltx
+
+# make rules
+.PHONY: $(TARGET) $(TESTS) clean
+
+all: $(TARGET_SRCS)
+	$(CC) $(CFLAGS) $(INCLUDES) \
+		$(TARGET_SRCS) -o $(TARGET)
+
+debug: $(TARGET_SRCS)
+	$(CC) $(CFLAGS) $(INCLUDES) \
+		$(TARGET_SRCS) -o $(TARGET) \
+		-g -DDEBUG
+
+test: $(TESTS)
+
+$(TESTS): $(TESTS_DEPS)
+	$(CC) $(CFLAGS) $(INCLUDES) \
+		$(TESTS_DEPS) $@.c -o $@ \
 		`pkg-config --cflags --libs check`
 
 clean:
-	rm -f ltx tests/test_utils tests/test_message tests/test_unpack
+	$(RM) $(TARGET) $(TESTS)
