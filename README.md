@@ -58,13 +58,13 @@ Request:
 
 | fixarray | uint   |
 |:---------|:-------|
-| `0x90`   | `0x00` |
+| `0x91`   | `0x00` |
 
 Reply:
 
 | fixarray | uint   | string   |
 |:---------|:-------|:---------|
-| `0x91`   | `0x00` | version  |
+| `0x92`   | `0x00` | version  |
 
 ### Ping
 
@@ -75,13 +75,13 @@ Request:
 
 | fixarray | uint   |
 |:---------|:-------|
-| `0x90`   | `0x01` |
+| `0x91`   | `0x01` |
 
 Reply:
 
 | fixarray | uint   | uint    |
 |:---------|:-------|:--------|
-| `0x91`   | `0x02` | time_ns |
+| `0x92`   | `0x02` | time_ns |
 
 ### Get file
 
@@ -94,13 +94,13 @@ Request:
 
 | fixarray | uint   | string    |
 |:---------|:-------|:----------|
-| `0x91`   | `0x03` | file path |
+| `0x92`   | `0x03` | file path |
 
 Data:
 
 | fixarray | uint   | bytes        |
 |:---------|:-------|:-------------|
-| `0x91`   | `0xa0` | file content |
+| `0x92`   | `0xa0` | file content |
 
 ### Set file
 
@@ -112,13 +112,13 @@ Request:
 
 | fixarray | uint   | string    | bytes        |
 |:---------|:-------|:----------|:-------------|
-| `0x92`   | `0x04` | file path | file content |
+| `0x93`   | `0x04` | file path | file content |
 
 Reply:
 
 | fixarray | uint   | string    |
 |:---------|:-------|:----------|
-| `0x91`   | `0x04` | file path |
+| `0x92`   | `0x04` | file path |
 
 ### Env
 
@@ -130,7 +130,7 @@ Request:
 
 | fixarray | uint   | uint    | string | string |
 |:---------|:-------|:------- |:-------|:-------|
-| `0x93`   | `0x05` | slot_id | key    | value  |
+| `0x94`   | `0x05` | slot_id | key    | value  |
 
 ### Cwd
 
@@ -142,7 +142,7 @@ Request:
 
 | fixarray | uint   | uint    | string |
 |:---------|:-------|:------- |:-------|
-| `0x92`   | `0x06` | slot_id | path   |
+| `0x93`   | `0x06` | slot_id | path   |
 
 ### Exec
 
@@ -155,19 +155,19 @@ Request:
 
 | fixarray | uint   | uint    | string    |
 |:---------|:-------|:------- |:----------|
-| `0x92`   | `0x07` | slot_id | command   |
+| `0x93`   | `0x07` | slot_id | command   |
 
 Log:
 
 | fixarray | uint   | uint    | string    |
 |:---------|:-------|:------- |:----------|
-| `0x92`   | `0x09` | slot_id | stdout    |
+| `0x93`   | `0x09` | slot_id | stdout    |
 
 Result:
 
 | fixarray | uint   | uint    | uint    | uint      |
 |:---------|:-------|:--------|:--------|:----------|
-| `0x93`   | `0x08` | exec_ns | si_code | si_status |
+| `0x94`   | `0x08` | exec_ns | si_code | si_status |
 
 ### Kill
 
@@ -179,7 +179,7 @@ Request:
 
 | fixarray | uint   | uint    |
 |:---------|:-------|:------- |
-| `0x91`   | `0xa1` | slot_id |
+| `0x92`   | `0xa1` | slot_id |
 
 ### Error
 
@@ -191,7 +191,7 @@ Reply:
 
 | fixarray | uint   | string       |
 |:---------|:-------|:-------------|
-| `0x91`   | `0xff` | error string |
+| `0x92`   | `0xff` | error string |
 
 
 [MessagePack]: https://github.com/msgpack/msgpack/blob/master/spec.md
