@@ -56,13 +56,13 @@ Check for LTX version.
 
 Request:
 
-| fixarray | fixint |
+| fixarray | uint   |
 |:---------|:-------|
 | `0x90`   | `0x00` |
 
 Reply:
 
-| fixarray | fixint | string   |
+| fixarray | uint   | string   |
 |:---------|:-------|:---------|
 | `0x91`   | `0x00` | version  |
 
@@ -73,15 +73,15 @@ with `CLOCK_MONOTONIC`.
 
 Request:
 
-| fixarray | fixint |
+| fixarray | uint   |
 |:---------|:-------|
 | `0x90`   | `0x01` |
 
 Reply:
 
-| fixarray | fixint | uint64_t |
-|:---------|:-------|:---------|
-| `0x91`   | `0x02` | time_ns  |
+| fixarray | uint   | uint    |
+|:---------|:-------|:--------|
+| `0x91`   | `0x02` | time_ns |
 
 ### Get file
 
@@ -92,13 +92,13 @@ until `Get file` request is completed.
 
 Request:
 
-| fixarray | fixint | string    |
+| fixarray | uint   | string    |
 |:---------|:-------|:----------|
 | `0x91`   | `0x03` | file path |
 
 Data:
 
-| fixarray | fixint | bytes        |
+| fixarray | uint   | bytes        |
 |:---------|:-------|:-------------|
 | `0x91`   | `0xa0` | file content |
 
@@ -110,13 +110,13 @@ except for the file content data, which is removed to speed up communication.
 
 Request:
 
-| fixarray | fixint | string    | bytes        |
+| fixarray | uint   | string    | bytes        |
 |:---------|:-------|:----------|:-------------|
 | `0x92`   | `0x04` | file path | file content |
 
 Reply:
 
-| fixarray | fixint | string    |
+| fixarray | uint   | string    |
 |:---------|:-------|:----------|
 | `0x91`   | `0x04` | file path |
 
@@ -128,7 +128,7 @@ number `128`.
 
 Request:
 
-| fixarray | fixint | fixint  | string | string |
+| fixarray | uint   | uint    | string | string |
 |:---------|:-------|:------- |:-------|:-------|
 | `0x93`   | `0x05` | slot_id | key    | value  |
 
@@ -140,7 +140,7 @@ message is processed, request is echoed back. To set `Cwd` for all slots use
 
 Request:
 
-| fixarray | fixint | fixint  | string |
+| fixarray | uint   | uint    | string |
 |:---------|:-------|:------- |:-------|
 | `0x93`   | `0x06` | slot_id | path   |
 
@@ -153,19 +153,19 @@ will have a nano seconds time stamp taken with `CLOCK_MONOTONIC`.
 
 Request:
 
-| fixarray | fixint | fixint  | string    |
+| fixarray | uint   | uint    | string    |
 |:---------|:-------|:------- |:----------|
 | `0x92`   | `0x07` | slot_id | command   |
 
 Log:
 
-| fixarray | fixint | fixint  | string    |
+| fixarray | uint   | uint    | string    |
 |:---------|:-------|:------- |:----------|
 | `0x92`   | `0x09` | slot_id | stdout    |
 
 Result:
 
-| fixarray | fixint | fixint  | fixint  | fixint    |
+| fixarray | uint   | uint    | uint    | uint      |
 |:---------|:-------|:--------|:--------|:----------|
 | `0x93`   | `0x08` | exec_ns | si_code | si_status |
 
@@ -177,7 +177,7 @@ to receive the last `Log` messages as well as a `Result` message.
 
 Request:
 
-| fixarray | fixint | fixint  |
+| fixarray | uint   | uint    |
 |:---------|:-------|:------- |
 | `0x91`   | `0xa1` | slot_id |
 
@@ -189,7 +189,7 @@ message is received from LTX.
 
 Reply:
 
-| fixarray | fixint | string       |
+| fixarray | uint   | string       |
 |:---------|:-------|:-------------|
 | `0x91`   | `0xff` | error string |
 
