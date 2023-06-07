@@ -43,6 +43,9 @@ For testing:
     # execute LTX communication tests
     pytest -v tests/test_ltx.py
 
+We can also easily cross-compile LTX using `zig==0.11.0`. Beware that this is an
+**experimental feature** and it's up to developers if they want to use it or
+not.
 
 ## Messages
 
