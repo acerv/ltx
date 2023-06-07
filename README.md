@@ -142,7 +142,7 @@ Request:
 
 | fixarray | uint   | uint    | string |
 |:---------|:-------|:------- |:-------|
-| `0x93`   | `0x06` | slot_id | path   |
+| `0x92`   | `0x06` | slot_id | path   |
 
 ### Exec
 
