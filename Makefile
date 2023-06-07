@@ -23,16 +23,14 @@ TARGET_SRCS = \
 TARGET = ltx
 
 # make rules
-.PHONY: $(TARGET) $(TESTS) clean
+.PHONY: $(TARGET) $(TESTS) clean debug
 
 all: $(TARGET_SRCS)
 	$(CC) $(CFLAGS) $(INCLUDES) \
 		$(TARGET_SRCS) -o $(TARGET)
 
-debug: $(TARGET_SRCS)
-	$(CC) $(CFLAGS) $(INCLUDES) \
-		$(TARGET_SRCS) -o $(TARGET) \
-		-g -DDEBUG
+debug: CFLAGS += -g -DDEBUG
+debug: all
 
 test: $(TESTS)
 
