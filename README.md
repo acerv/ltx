@@ -92,13 +92,13 @@ until `Get file` request is completed.
 
 Request:
 
-| fixarray | type   | string    |
+| fixarray | fixint | string    |
 |:---------|:-------|:----------|
 | `0x91`   | `0x03` | file path |
 
 Data:
 
-| fixarray | type   | bytes        |
+| fixarray | fixint | bytes        |
 |:---------|:-------|:-------------|
 | `0x91`   | `0xa0` | file content |
 
@@ -110,13 +110,13 @@ except for the file content data, which is removed to speed up communication.
 
 Request:
 
-| fixarray | type   | string    | bytes        |
+| fixarray | fixint | string    | bytes        |
 |:---------|:-------|:----------|:-------------|
 | `0x92`   | `0x04` | file path | file content |
 
 Reply:
 
-| fixarray | type   | string    |
+| fixarray | fixint | string    |
 |:---------|:-------|:----------|
 | `0x91`   | `0x04` | file path |
 
@@ -189,7 +189,7 @@ message is received from LTX.
 
 Reply:
 
-| fixarray | type   | string       |
+| fixarray | fixint | string       |
 |:---------|:-------|:-------------|
 | `0x91`   | `0xff` | error string |
 
