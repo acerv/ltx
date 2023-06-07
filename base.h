@@ -10,124 +10,46 @@
 /* The current LTX version */
 #define VERSION "0.1"
 
-/* Code used to identify no commands. */
+/* Code used to identify no requests */
 #define LTX_NONE 0xffff
 
-/* Message sent when an error occurs.
- * Data structure is the following:
- *
- * | uint | str |
- */
+/* Message sent when error occurs */
 #define LTX_ERROR 0xff
 
-/* VERSION request.
- * Data structure is the following:
- *
- * | uint |
- *
- * The reply is the following:
- *
- * | uint | str |
- */
+/* VERSION request */
 #define LTX_VERSION 0x00
 
-/* PING request.
- * Data structure is the following:
- *
- * | uint |
- *
- * The reply is the following (PONG):
- *
- * | uint | uint |
- */
+/* PING request */
 #define LTX_PING 0x01
 
-/* Reply to PING request.
- * Data structure is the following:
- *
- * | uint | uint |
- *
- * Where second element is time stamp (CLOCK_MONOTONIC).
- */
+/* PONG reply */
 #define LTX_PONG 0x02
 
-/* GET_FILE request.
- * Data structure is the following:
- *
- * | uint | str |
- *
- * The reply is the following
- *
- * | uint | str | bin |
- */
+/* GET_FILE request */
 #define LTX_GET_FILE 0x03
 
-/* SET_FILE request.
- * Data structure is the following:
- *
- * | uint | str | bin |
- *
- * The reply is the following
- *
- * | uint | str |
- */
+/* SET_FILE request. */
 #define LTX_SET_FILE 0x04
 
-/* ENV request.
- * Data structure is the following:
- *
- * | uint | uint | str | str |
- *
- * Once applied, the data structure is echoed back.
- */
+/* ENV request */
 #define LTX_ENV 0x05
 
-/* CWD request.
- * Data structure is the following:
- *
- * | uint | uint | str |
- *
- * Once applied, the data structure is echoed back.
- */
+/* CWD request */
 #define LTX_CWD 0x06
 
-/* EXEC request.
- * Data structure is the following:
- *
- * | uint | uint | str |
- *
- * The data structure is echoed back.
- */
+/* EXEC request */
 #define LTX_EXEC 0x07
 
-/* RESULT request. This is sent once execution has completed.
- * Data structure is the following:
- *
- * | uint | uint | uint | uint | uint |
- */
+/* RESULT request */
 #define LTX_RESULT 0x08
 
-/* LOG reply. This message is sent every time command executed via EXEC has
- * wrote on stdout. Data structure is the following:
- *
- * | uint | uint | uint | str |
- */
+/* LOG reply */
 #define LTX_LOG 0x09
 
-/* DATA reply. This is sent when GET_FILE is received.
- * Data structure is the following:
- *
- * | uint | bin |
- */
+/* DATA reply */
 #define LTX_DATA 0xa0
 
-/* KILL request. It kills a running command sending SIGKILL.
- * Data structure is the following:
- *
- * | uint | uint |
- *
- * The data structure is echoed back.
- */
+/* KILL request */
 #define LTX_KILL 0xa1
 
 #endif /* LTX_BASE_H */

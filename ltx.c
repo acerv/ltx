@@ -4,7 +4,7 @@
  * Copyright (c) 2023 Andrea Cervesato <andrea.cervesato@suse.com>
  */
 
-#define _GNU_SOURCE /* CLOCK_MONOTONIC_RAW */
+#define _GNU_SOURCE /* CLOCK_MONOTONIC */
 
 #include <time.h>
 #include <fcntl.h>
