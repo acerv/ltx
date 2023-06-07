@@ -160,6 +160,21 @@ struct ltx_session
 	struct ltx_table table;
 };
 
+/* stores information about error position inside the code */
+struct ltx_error_pos
+{
+	const char *const file;
+	const char *const func;
+	const int line;
+};
+
+#define LTX_HANDLE_ERROR(session, str, show_errno) \
+	ltx_handle_error( \
+		((struct ltx_error_pos){ __FILE__, __func__, __LINE__ }), \
+		session, \
+		str, \
+		show_errno)
+
 static void ltx_message_reserve_next(struct ltx_session *session)
 {
 	++(session->ltx_message.curr);
@@ -218,6 +233,7 @@ static void ltx_echo(struct ltx_session *session)
 }
 
 static void ltx_handle_error(
+	struct ltx_error_pos pos,
 	struct ltx_session *session,
 	const char *const str,
 	const int show_errno)
@@ -228,20 +244,32 @@ static void ltx_handle_error(
 
 	mp_message_uint(&msgs[0], LTX_ERROR);
 
+	char* msg;
+
 	if (show_errno) {
-		char* msg;
-		int ret = asprintf(&msg, "%s (%s)", str, strerror(errno));
+		int ret = asprintf(&msg, "%s:%s:%d %s (%s)",
+			pos.file,
+			pos.func,
+			pos.line,
+			str,
+			strerror(errno));
 		assert(ret >= 0);
-
-		mp_message_str(&msgs[1], msg);
-
-		free(msg);
 	} else {
-		mp_message_str(&msgs[1], str);
+		int ret = asprintf(&msg, "%s:%s:%d %s",
+			pos.file,
+			pos.func,
+			pos.line,
+			str);
+		assert(ret >= 0);
 	}
+
+	mp_message_str(&msgs[1], msg);
 
 	ltx_send_messages(session, msgs, 2);
 	ltx_message_reset(session);
+
+	if (msg)
+		free(msg);
 }
 
 static void ltx_read_string(
@@ -255,7 +283,7 @@ static void ltx_read_string(
 	ptr = mp_message_read_str(msg, &size);
 
 	if (size > MAX_STRING_LEN) {
-		ltx_handle_error(session, "Maximum string length is 4096", 0);
+		LTX_HANDLE_ERROR(session, "Maximum string length is 4096", 0);
 		return;
 	}
 
@@ -303,7 +331,7 @@ static int ltx_file_from_proc(struct ltx_session *session, const int fd)
 	struct statfs fs;
 
 	if (fstatfs(fd, &fs) == -1) {
-		ltx_handle_error(session, "fstatfs() error", 1);
+		LTX_HANDLE_ERROR(session, "fstatfs() error", 1);
 		return -1;
 	}
 
@@ -318,13 +346,13 @@ static void ltx_handle_get_file(struct ltx_session *session)
 	ltx_read_string(session, session->ltx_message.data + 1, path);
 
 	if (path[0] == '\0') {
-		ltx_handle_error(session, "Empty given path", 0);
+		LTX_HANDLE_ERROR(session, "Empty given path", 0);
 		return;
 	}
 
 	int fd = open(path, O_RDONLY);
 	if (fd == -1) {
-		ltx_handle_error(session, "open() error", 1);
+		LTX_HANDLE_ERROR(session, "open() error", 1);
 		return;
 	}
 
@@ -334,17 +362,17 @@ static void ltx_handle_get_file(struct ltx_session *session)
 
 	struct stat st;
 	if (fstat(fd, &st) == -1) {
-		ltx_handle_error(session, "fstat() error", 1);
+		LTX_HANDLE_ERROR(session, "fstat() error", 1);
 		return;
 	}
 
 	if (!S_ISREG(st.st_mode)) {
-		ltx_handle_error(session, "Given path is not a file", 0);
+		LTX_HANDLE_ERROR(session, "Given path is not a file", 0);
 		return;
 	}
 
 	if (st.st_size >= 0x7ffff000) {
-		ltx_handle_error(session, "File is too large", 0);
+		LTX_HANDLE_ERROR(session, "File is too large", 0);
 		return;
 	}
 
@@ -355,7 +383,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 		/* read /proc files has zero length. We need to use getline() */
 		FILE *stream = fdopen(fd, "r");
 		if (!stream) {
-			ltx_handle_error(session, "fdopen() error", 1);
+			LTX_HANDLE_ERROR(session, "fdopen() error", 1);
 			return;
 		};
 
@@ -371,7 +399,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 			free(line);
 
 		if (!feof(stream)) {
-			ltx_handle_error(session, "getline() error", 1);
+			LTX_HANDLE_ERROR(session, "getline() error", 1);
 			return;
 		}
 	} else {
@@ -382,7 +410,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 		do {
 			nread = read(fd, data, READ_BUFFER_SIZE);
 			if (nread == -1) {
-				ltx_handle_error(session, "read() error", 1);
+				LTX_HANDLE_ERROR(session, "read() error", 1);
 				return;
 			}
 			pos += nread;
@@ -395,7 +423,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 	}
 
 	if (close(fd) == -1) {
-		ltx_handle_error(session, "close() error", 1);
+		LTX_HANDLE_ERROR(session, "close() error", 1);
 		return;
 	}
 
@@ -415,13 +443,13 @@ static void ltx_handle_set_file(struct ltx_session *session)
 	void *data = mp_message_read_bin(session->ltx_message.data + 2, &size);
 
 	if (path[0] == '\0') {
-		ltx_handle_error(session, "Empty given path", 0);
+		LTX_HANDLE_ERROR(session, "Empty given path", 0);
 		return;
 	}
 
 	int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0600);
 	if (fd == -1) {
-		ltx_handle_error(session, "open() error", 1);
+		LTX_HANDLE_ERROR(session, "open() error", 1);
 		return;
 	}
 
@@ -429,7 +457,7 @@ static void ltx_handle_set_file(struct ltx_session *session)
 	do {
 		ret = write(fd, data, size);
 		if (ret == -1) {
-			ltx_handle_error(session, "write() error", 1);
+			LTX_HANDLE_ERROR(session, "write() error", 1);
 			return;
 		}
 		pos += ret;
@@ -467,7 +495,7 @@ static int ltx_env_set(
 		}
 
 		if (i >= MAX_ENVS) {
-			ltx_handle_error(
+			LTX_HANDLE_ERROR(
 				session,
 				"Set too many environment variables", 0);
 			return 1;
@@ -495,7 +523,7 @@ static void ltx_handle_env(struct ltx_session *session)
 {
 	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
 	if (slot_id > MAX_SLOTS) {
-		ltx_handle_error(session, "Out of bound slot ID", 0);
+		LTX_HANDLE_ERROR(session, "Out of bound slot ID", 0);
 		return;
 	}
 
@@ -534,7 +562,7 @@ static void ltx_handle_cwd(struct ltx_session *session)
 {
 	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
 	if (slot_id > MAX_SLOTS) {
-		ltx_handle_error(session, "Out of bound slot ID", 0);
+		LTX_HANDLE_ERROR(session, "Out of bound slot ID", 0);
 		return;
 	}
 
@@ -543,7 +571,7 @@ static void ltx_handle_cwd(struct ltx_session *session)
 
 	struct stat sb;
 	if (stat(path, &sb) || !S_ISDIR(sb.st_mode)) {
-		ltx_handle_error(session, "CWD directory does not exist", 0);
+		LTX_HANDLE_ERROR(session, "CWD directory does not exist", 0);
 		return;
 	}
 
@@ -571,7 +599,7 @@ static struct ltx_slot *ltx_slot_reserve(
 	struct ltx_slot *exec_slot = session->table.slots + slot_id;
 
 	if (exec_slot->used) {
-		ltx_handle_error(session, "Execution slot is reserved", 0);
+		LTX_HANDLE_ERROR(session, "Execution slot is reserved", 0);
 		return NULL;
 	}
 
@@ -610,7 +638,7 @@ static int ltx_epoll_add(
 		&in_evt);
 
 	if (ret == -1) {
-		ltx_handle_error(session, "epoll_ctl() error", 1);
+		LTX_HANDLE_ERROR(session, "epoll_ctl() error", 1);
 		return 1;
 	}
 
@@ -622,7 +650,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 	/* read execution message */
 	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
 	if (slot_id >= MAX_SLOTS) {
-		ltx_handle_error(session, "Out of bound slot ID", 0);
+		LTX_HANDLE_ERROR(session, "Out of bound slot ID", 0);
 		return;
 	}
 
@@ -643,7 +671,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 	int pipefd[2];
 
 	if (pipe2(pipefd, O_CLOEXEC) == -1) {
-		ltx_handle_error(session, "pipe2() error", 1);
+		LTX_HANDLE_ERROR(session, "pipe2() error", 1);
 		return;
 	}
 
@@ -657,7 +685,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 	/* run the command */
 	pid_t pid = fork();
 	if (pid == -1) {
-		ltx_handle_error(session, "fork() error", 1);
+		LTX_HANDLE_ERROR(session, "fork() error", 1);
 		return;
 	}
 
@@ -670,12 +698,12 @@ static void ltx_handle_exec(struct ltx_session *session)
 
 	/* redirect stdout to pipe */
 	if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
-		ltx_handle_error(session, "dup2() stdout", 1);
+		LTX_HANDLE_ERROR(session, "dup2() stdout", 1);
 		exit(1);
 	}
 
 	if (dup2(pipefd[1], STDERR_FILENO) == -1) {
-		ltx_handle_error(session, "dup2() stderr", 1);
+		LTX_HANDLE_ERROR(session, "dup2() stderr", 1);
 		exit(1);
 	}
 
@@ -689,7 +717,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 			continue;
 
 		if (setenv(env.key, env.value, 1) == -1) {
-			ltx_handle_error(
+			LTX_HANDLE_ERROR(
 				session,
 				"global setenv()",
 				1);
@@ -704,7 +732,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 			continue;
 
 		if (setenv(env.key, env.value, 1) == -1) {
-			ltx_handle_error(
+			LTX_HANDLE_ERROR(
 				session,
 				"local setenv()",
 				1);
@@ -714,13 +742,13 @@ static void ltx_handle_exec(struct ltx_session *session)
 
 	/* change directory */
 	if (strlen(exec_slot->cwd) && chdir(exec_slot->cwd) == -1) {
-		ltx_handle_error(session, "chdir() error", 1);
+		LTX_HANDLE_ERROR(session, "chdir() error", 1);
 		exit(1);
 	}
 
 	/* execute the command */
 	if (execlp("sh", "sh", "-c", cmd, (char *) NULL) == -1) {
-		ltx_handle_error(session, "execlp() error", 1);
+		LTX_HANDLE_ERROR(session, "execlp() error", 1);
 		exit(1);
 	}
 
@@ -758,7 +786,7 @@ static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 
 	int ret = read(slot->event.fd, slot->buffer, READ_BUFFER_SIZE);
 	if (ret == -1) {
-		ltx_handle_error(session, "read() log", 1);
+		LTX_HANDLE_ERROR(session, "read() log", 1);
 		return 0;
 	}
 
@@ -793,7 +821,7 @@ static void ltx_send_result(struct ltx_session *session)
 			continue;
 
 		if (waitid(P_PID, slot->pid, &info, WEXITED) == -1) {
-			ltx_handle_error(session, "waitid() error", 1);
+			LTX_HANDLE_ERROR(session, "waitid() error", 1);
 			return;
 		}
 
@@ -823,7 +851,7 @@ static void ltx_handle_kill(struct ltx_session *session)
 	/* read message */
 	uint64_t slot_id = mp_message_read_uint(session->ltx_message.data + 1);
 	if (slot_id >= MAX_SLOTS) {
-		ltx_handle_error(session, "Out of bound slot ID", 0);
+		LTX_HANDLE_ERROR(session, "Out of bound slot ID", 0);
 		return;
 	}
 
@@ -833,7 +861,7 @@ static void ltx_handle_kill(struct ltx_session *session)
 
 	int ret = kill(exec_slot->pid, SIGKILL);
 	if (ret == -1 && errno != ESRCH) {
-		ltx_handle_error(session, "kill() error", 1);
+		LTX_HANDLE_ERROR(session, "kill() error", 1);
 		return;
 	}
 
@@ -851,7 +879,7 @@ static void ltx_process_msg(struct ltx_session *session)
 	if (msg->type == LTX_NONE) {
 		if (!msg->length) {
 			if (mp_message_type(msg->data) != MP_ARRAY) {
-				ltx_handle_error(
+				LTX_HANDLE_ERROR(
 					session,
 					"Messages must be packed inside array",
 					0);
@@ -866,7 +894,7 @@ static void ltx_process_msg(struct ltx_session *session)
 		} else {
 			/* handle requests composed by a single message */
 			if (mp_message_type(msg->data) != MP_NUMERIC) {
-				ltx_handle_error(
+				LTX_HANDLE_ERROR(
 					session,
 					"Message type must be a numeric",
 					0);
@@ -891,35 +919,35 @@ static void ltx_process_msg(struct ltx_session *session)
 			/* handle commands which should never be sent */
 			case LTX_PONG:
 				reserve_next = 0;
-				ltx_handle_error(
+				LTX_HANDLE_ERROR(
 					session,
 					"PONG should not be received",
 					0);
 				break;
 			case LTX_ERROR:
 				reserve_next = 0;
-				ltx_handle_error(
+				LTX_HANDLE_ERROR(
 					session,
 					"ERROR should not be received",
 					0);
 				break;
 			case LTX_DATA:
 				reserve_next = 0;
-				ltx_handle_error(
+				LTX_HANDLE_ERROR(
 					session,
 					"DATA should not be received",
 					0);
 				break;
 			case LTX_RESULT:
 				reserve_next = 0;
-				ltx_handle_error(
+				LTX_HANDLE_ERROR(
 					session,
 					"RESULT should not be received",
 					0);
 				break;
 			case LTX_LOG:
 				reserve_next = 0;
-				ltx_handle_error(
+				LTX_HANDLE_ERROR(
 					session,
 					"LOG should not be received",
 					0);
@@ -971,10 +999,10 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 
 	if (size == -1) {
 		if (errno != EAGAIN)
-			ltx_handle_error(session, "read() error", 1);
+			LTX_HANDLE_ERROR(session, "read() error", 1);
 		return;
 	} else if (!size) {
-		ltx_handle_error(session, "Reached stdin EOF", 0);
+		LTX_HANDLE_ERROR(session, "Reached stdin EOF", 0);
 		return;
 	}
 
@@ -994,7 +1022,7 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 			ltx_process_msg(session);
 			break;
 		case MP_UNPACKER_TYPE_ERROR:
-			ltx_handle_error(
+			LTX_HANDLE_ERROR(
 				session,
 				"Unsupported msgpack type",
 				0);
@@ -1064,7 +1092,7 @@ static void ltx_start_event_loop(struct ltx_session *session)
 	/* create epoll file descriptor */
 	session->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
 	if (session->epoll_fd == -1) {
-		ltx_handle_error(session, "epoll_create() error", 1);
+		LTX_HANDLE_ERROR(session, "epoll_create() error", 1);
 		return;
 	}
 
@@ -1107,7 +1135,7 @@ static void ltx_start_event_loop(struct ltx_session *session)
 			1000);
 
 		if (num == -1) {
-			ltx_handle_error(session, "epoll_wait() error", 1);
+			LTX_HANDLE_ERROR(session, "epoll_wait() error", 1);
 			return;
 		}
 

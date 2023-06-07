@@ -174,8 +174,9 @@ def test_pong_error(ltx_helper):
     Test that PONG command raises an ERROR:
     """
     ltx_helper.send(msgpack.packb([LTX_PONG]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(
-        [LTX_ERROR, "PONG should not be received"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "PONG should not be received" in reply[1]
 
 
 def test_error(ltx_helper):
@@ -183,8 +184,9 @@ def test_error(ltx_helper):
     Test that ERROR command raises an ERROR:
     """
     ltx_helper.send(msgpack.packb([LTX_ERROR]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(
-        [LTX_ERROR, "ERROR should not be received"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "ERROR should not be received" in reply[1]
 
 
 def test_data_error(ltx_helper):
@@ -192,8 +194,9 @@ def test_data_error(ltx_helper):
     Test that DATA command raises an ERROR:
     """
     ltx_helper.send(msgpack.packb([LTX_DATA]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(
-        [LTX_ERROR, "DATA should not be received"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "DATA should not be received" in reply[1]
 
 
 def test_get_file(ltx_helper, tmpdir):
@@ -231,7 +234,9 @@ def test_get_file_empty_path_error(ltx_helper):
     Test GET_FILE command error when empty path is given.
     """
     ltx_helper.send(msgpack.packb([LTX_GET_FILE, '']), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Empty given path"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Empty given path" in reply[1]
 
 
 def test_get_file_not_file_error(ltx_helper):
@@ -239,8 +244,9 @@ def test_get_file_not_file_error(ltx_helper):
     Test GET_FILE command error when regular file is not given.
     """
     ltx_helper.send(msgpack.packb([LTX_GET_FILE, "/"]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(
-        [LTX_ERROR, "Given path is not a file"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Given path is not a file" in reply[1]
 
 
 def test_set_file(ltx_helper, tmpdir):
@@ -263,7 +269,9 @@ def test_set_file_empty_path_error(ltx_helper):
     Test SET_FILE command error when empty path is given.
     """
     ltx_helper.send(msgpack.packb([LTX_SET_FILE, '', b'']), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Empty given path"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Empty given path" in reply[1]
 
 
 def test_env_local(ltx_helper):
@@ -289,7 +297,9 @@ def test_env_out_of_bound_error(ltx_helper):
     cmd = msgpack.packb([LTX_ENV, MAX_SLOTS + 1, "mykey", "myvalue"])
 
     ltx_helper.send(cmd, check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Out of bound slot ID" in reply[1]
 
 
 def test_env_too_many_error(ltx_helper):
@@ -306,8 +316,9 @@ def test_env_too_many_error(ltx_helper):
     value = "myvalue" + str(MAX_ENVS + 1)
 
     ltx_helper.send(msgpack.packb([LTX_ENV, 0, key, value]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(
-        [LTX_ERROR, "Set too many environment variables"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Set too many environment variables" in reply[1]
 
 
 def test_cwd_local(ltx_helper, tmpdir):
@@ -331,7 +342,9 @@ def test_cwd_out_of_bound_error(ltx_helper, tmpdir):
     """
     ltx_helper.send(msgpack.packb(
         [LTX_CWD, MAX_SLOTS + 1, str(tmpdir)]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Out of bound slot ID" in reply[1]
 
 
 def test_cwd_dir_does_not_exist_error(ltx_helper):
@@ -340,8 +353,9 @@ def test_cwd_dir_does_not_exist_error(ltx_helper):
     """
     ltx_helper.send(msgpack.packb(
         [LTX_CWD, 0, "/this/dir/doesnt/exist"]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb(
-        [LTX_ERROR, "CWD directory does not exist"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "CWD directory does not exist" in reply[1]
 
 
 def test_exec(ltx_helper):
@@ -439,7 +453,9 @@ def test_exec_out_of_bound_error(ltx_helper):
     """
     ltx_helper.send(msgpack.packb(
         [LTX_EXEC, MAX_SLOTS + 1, "test"]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Out of bound slot ID" in reply[1]
 
 
 def test_exec_reserved_error(ltx_helper):
@@ -451,9 +467,9 @@ def test_exec_reserved_error(ltx_helper):
     cmd += msgpack.packb([LTX_EXEC, 0, "echo ciao"])
 
     ltx_helper.send(cmd)
-
-    ltx_helper.expect_exact(msgpack.packb(
-        [LTX_ERROR, "Execution slot is reserved"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Execution slot is reserved" in reply[1]
 
 
 def test_exec_env_local(ltx_helper):
@@ -623,4 +639,6 @@ def test_kill_out_of_bound_error(ltx_helper):
     Test KILL command with out-of-bound slot.
     """
     ltx_helper.send(msgpack.packb([LTX_KILL, MAX_SLOTS]), check_echo=False)
-    ltx_helper.expect_exact(msgpack.packb([LTX_ERROR, "Out of bound slot ID"]))
+    reply = ltx_helper.unpack_next()
+    assert reply[0] == LTX_ERROR
+    assert "Out of bound slot ID" in reply[1]
