@@ -7,6 +7,7 @@
 #ifndef MSGPACK_MESSAGE_H
 #define MSGPACK_MESSAGE_H
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 
