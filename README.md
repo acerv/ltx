@@ -181,5 +181,17 @@ Request:
 |:---------|:-------|:------- |
 | `0x91`   | `0xa1` | slot_id |
 
+### Error
+
+All the times and error occurs inside LTX, this message is sent. This message
+can literally arrive in any moment, so be sure to process error type before any
+message is received from LTX.
+
+Reply:
+
+| fixarray | type   | string       |
+|:---------|:-------|:-------------|
+| `0x91`   | `0xff` | error string |
+
 
 [MessagePack]: https://github.com/msgpack/msgpack/blob/master/spec.md
