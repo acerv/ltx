@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -pedantic -W -Wall -g -Imsgpack
+CFLAGS = -pedantic -W -Wall -Imsgpack
 
 all:
 	$(CC) $(CFLAGS) \
