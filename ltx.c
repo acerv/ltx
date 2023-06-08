@@ -813,26 +813,44 @@ static void ltx_send_result(struct ltx_session *session)
 {
 	struct ltx_slot *slot;
 	uint64_t slot_id;
-	siginfo_t info;
+	int ret;
+	int status;
+	int ssi_code;
+	int ssi_status;
 
 	for (slot_id = 0; slot_id < MAX_SLOTS; slot_id++) {
 		slot = session->table.slots + slot_id;
 		if (slot->pid == -1)
 			continue;
 
-		if (waitid(P_PID, slot->pid, &info, WEXITED) == -1) {
-			LTX_HANDLE_ERROR(session, "waitid() error", 1);
+		ret = waitpid(slot->pid, &status, WNOHANG);
+		if (ret == -1) {
+			LTX_HANDLE_ERROR(session, "waitpid() error", 1);
 			return;
 		}
+
+		if (ret != slot->pid)
+			continue;
 
 		/* drain the child stdout before sending RESULT reply */
 		while (ltx_check_stdout(session, slot_id)) {}
 
+		if (WIFSIGNALED(status)) {
+			ssi_code = CLD_KILLED;
+			ssi_status = WTERMSIG(status);
+		} else if (WIFSTOPPED(status)) {
+			ssi_code = CLD_STOPPED;
+			ssi_status = WSTOPSIG(status);
+		} else {
+			ssi_code = CLD_EXITED;
+			ssi_status = WEXITSTATUS(status);
+		}
+
 		ltx_handle_result(
 			session,
 			slot_id,
-			info.si_code,
-			info.si_status);
+			ssi_code,
+			ssi_status);
 
 		ltx_slot_free(session, slot_id);
 	}
