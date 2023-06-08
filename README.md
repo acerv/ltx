@@ -168,9 +168,9 @@ Log:
 
 Result:
 
-| fixarray | uint   | uint    | uint    | uint      |
-|:---------|:-------|:--------|:--------|:----------|
-| `0x94`   | `0x08` | exec_ns | si_code | si_status |
+| fixarray | uint   | uint    | uint    | uint    | uint      |
+|:---------|:-------|:------- |:--------|:--------|:----------|
+| `0x95`   | `0x08` | slot_id | exec_ns | si_code | si_status |
 
 ### Kill
 
