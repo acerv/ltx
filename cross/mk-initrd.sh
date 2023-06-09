@@ -20,7 +20,11 @@ fi
 
 if [ ! -x $rootdir/init ]; then
         echo "Expected init executable (LTX) in $rootdir"
+        exit 1
 fi
 
 bname=$(basename $rootdir)
-find $rootdir | cpio -v -H newc -o | gzip -n > $rootdir/../$bname.cpio.gz
+pdir=$(pwd)
+cd $rootdir
+find . | cpio -v -H newc -o | gzip -n > ../$bname.cpio.gz
+cd $pdir
