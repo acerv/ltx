@@ -202,10 +202,13 @@ static void ltx_send_message(
 {
 	LTX_PRINT_MESSAGE(msg);
 
-	assert(write(
-		session->stdout_fd,
-		msg->data,
-		msg->length) == (ssize_t)msg->length);
+	ssize_t pos = 0, ret;
+	do {
+		ret = write(session->stdout_fd, msg->data, msg->length);
+		assert(ret != -1);
+
+		pos += ret;
+	} while (pos < (ssize_t)msg->length);
 }
 
 static void ltx_send_messages(
