@@ -1185,6 +1185,10 @@ int main(void)
 {
 	struct ltx_session *session;
 
+	if (getpid() == 1) {
+		dprintf(STDERR_FILENO, "LTX is running as init!");
+	}
+
 	session = ltx_session_init(STDIN_FILENO, STDOUT_FILENO);
 	ltx_start_event_loop(session);
 	ltx_session_destroy(session);
