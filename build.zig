@@ -57,4 +57,28 @@ pub fn build(b: *std.Build) void {
     });
 
     b.installArtifact(sysinfo);
+
+    const tests = .{ "message", "unpack", "utils" };
+    const test_step = b.step("test", "Run the C unit tests");
+
+    inline for (tests) |name| {
+        const texe = b.addExecutable(.{
+            .name = "test_" ++ name,
+            .link_libc = true,
+            .target = target,
+            .optimize = optimize,
+        });
+
+        texe.addIncludePath("msgpack");
+        texe.addCSourceFiles(&.{
+            "tests/test_" ++ name ++ ".c",
+            "msgpack/message.c",
+            "msgpack/unpack.c",
+        }, cflags);
+
+        texe.linkSystemLibraryNeeded("check");
+
+        const test_cmd = b.addRunArtifact(texe);
+        test_step.dependOn(&test_cmd.step);
+    }
 }
