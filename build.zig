@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
-        .name = "ltx",
+        .name = "init",
         .link_libc = true,
         .target = target,
         .optimize = optimize,
@@ -32,6 +32,7 @@ pub fn build(b: *std.Build) void {
         &std_cflags;
 
     exe.addCSourceFiles(&.{
+        "cross/init.c",
         "ltx.c",
         "msgpack/message.c",
         "msgpack/unpack.c",
