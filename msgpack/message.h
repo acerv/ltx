@@ -85,7 +85,7 @@ void mp_message_uint(struct mp_message *msg, const uint64_t value);
 uint64_t mp_message_read_uint(struct mp_message *msg);
 
 /* Create a message storing a string. */
-void mp_message_str(struct mp_message *msg, const char *const str);
+void mp_message_str(struct mp_message *msg, const char *const str, const size_t size);
 
 /* Return pointer to the first character of the string. */
 char *mp_message_read_str(struct mp_message *msg, size_t *size);

@@ -122,7 +122,7 @@ void test_mp_message_str(size_t len)
 	mp_write_number(len, length, length_bytes);
 
 	struct mp_message msg;
-	mp_message_str(&msg, data);
+	mp_message_str(&msg, data, len);
 
 	ck_assert_ptr_nonnull(msg.data);
 	ck_assert_uint_eq(msg.data[0], type);
@@ -135,10 +135,10 @@ void test_mp_message_str(size_t len)
 START_TEST(test_mp_message_fixstr)
 {
 	struct mp_message msg;
-	char data[] = {'c', 'i', 'a', 'o', '\0'};
+	char data[] = {'c', 'i', 'a', 'o'};
 
 	mp_message_init(&msg);
-	mp_message_str(&msg, data);
+	mp_message_str(&msg, data, 4);
 
 	ck_assert_ptr_nonnull(msg.data);
 	ck_assert_uint_eq(msg.data[0], MP_FIXSTR0 + 4);
@@ -169,11 +169,11 @@ END_TEST
 START_TEST(test_mp_message_read_str)
 {
 	struct mp_message msg;
-	char data[] = {'c', 'i', 'a', 'o', '\0'};
+	char data[] = {'c', 'i', 'a', 'o'};
 	char *pos;
 
 	mp_message_init(&msg);
-	mp_message_str(&msg, data);
+	mp_message_str(&msg, data, 4);
 
 	size_t size;
 	pos = mp_message_read_str(&msg, &size);
@@ -363,7 +363,7 @@ static void test_mp_write_data(uint8_t type, size_t data_size, int binary)
 	if (binary)
 		mp_message_bin(&msg, (uint8_t *)str, data_size);
 	else
-		mp_message_str(&msg, str);
+		mp_message_str(&msg, str, data_size);
 
 	num = write_message_and_read(&msg, buf, buf_size);
 
@@ -404,7 +404,7 @@ static void test_mp_write_data(uint8_t type, size_t data_size, int binary)
 
 START_TEST(test_mp_write_fixstr)
 {
-	test_mp_write_data(MP_FIXSTR0, 32, 0);
+	test_mp_write_data(MP_FIXSTR0, 31, 0);
 }
 END_TEST
 

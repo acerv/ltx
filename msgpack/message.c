@@ -208,23 +208,22 @@ uint64_t mp_message_read_uint(struct mp_message *msg)
 	return value;
 }
 
-void mp_message_str(struct mp_message *msg, const char *const str)
+void mp_message_str(struct mp_message *msg, const char *const str, const size_t size)
 {
 	assert(msg);
 	assert(str);
+	assert(size <= 0xffffffff);
 
 	mp_message_init(msg);
 
-	size_t datasize = strlen(str);
-	assert(datasize <= 0xffffffff);
-
-	int lensize = mp_read_number_bytes(datasize);
+	int lensize = 0;
 	uint8_t type;
 
-	if (datasize <= 32) {
-		type = MP_FIXSTR0 + datasize;
-		lensize = 0;
+	if (size < 32) {
+		type = MP_FIXSTR0 + size;
 	} else {
+		lensize = mp_read_number_bytes(size);
+
 		switch(lensize) {
 		case 1:
 			type = MP_STR8;
@@ -238,13 +237,13 @@ void mp_message_str(struct mp_message *msg, const char *const str)
 		}
 	}
 
-	mp_message_alloc(msg, 1 + lensize + datasize);
+	mp_message_alloc(msg, 1 + lensize + size);
 
 	msg->data[0] = type;
 	if (lensize > 0)
-		mp_write_number(datasize, msg->data + 1, lensize);
+		mp_write_number(size, msg->data + 1, lensize);
 
-	memcpy(msg->data + 1 + lensize, str, datasize);
+	memcpy(msg->data + 1 + lensize, str, size);
 }
 
 char *mp_message_read_str(struct mp_message *msg, size_t *size)

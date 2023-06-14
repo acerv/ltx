@@ -248,9 +248,10 @@ static void ltx_handle_error(
 	mp_message_uint(&msgs[0], LTX_ERROR);
 
 	char* msg;
+	int ret;
 
 	if (show_errno) {
-		int ret = asprintf(&msg, "%s:%s:%d %s (%s)",
+		ret = asprintf(&msg, "%s:%s:%d %s (%s)",
 			pos.file,
 			pos.func,
 			pos.line,
@@ -258,7 +259,7 @@ static void ltx_handle_error(
 			strerror(errno));
 		assert(ret >= 0);
 	} else {
-		int ret = asprintf(&msg, "%s:%s:%d %s",
+		ret = asprintf(&msg, "%s:%s:%d %s",
 			pos.file,
 			pos.func,
 			pos.line,
@@ -266,7 +267,7 @@ static void ltx_handle_error(
 		assert(ret >= 0);
 	}
 
-	mp_message_str(&msgs[1], msg);
+	mp_message_str(&msgs[1], msg, (size_t)ret);
 
 	ltx_send_messages(session, msgs, 2);
 	ltx_message_reset(session);
@@ -299,7 +300,7 @@ static void ltx_handle_version(struct ltx_session *session)
 	struct mp_message msgs[2];
 
 	mp_message_uint(&msgs[0], LTX_VERSION);
-	mp_message_str(&msgs[1], VERSION);
+	mp_message_str(&msgs[1], VERSION, strlen(VERSION));
 
 	ltx_send_messages(session, msgs, 2);
 	ltx_message_reset(session);
@@ -431,7 +432,7 @@ static void ltx_handle_get_file(struct ltx_session *session)
 	}
 
 	mp_message_uint(&msgs[0], LTX_GET_FILE);
-	mp_message_str(&msgs[1], path);
+	mp_message_str(&msgs[1], path, strlen(path));
 
 	ltx_send_messages(session, msgs, 2);
 	ltx_message_reset(session);
@@ -471,7 +472,7 @@ static void ltx_handle_set_file(struct ltx_session *session)
 	struct mp_message msgs[2];
 
 	mp_message_uint(&msgs[0], LTX_SET_FILE);
-	mp_message_str(&msgs[1], path);
+	mp_message_str(&msgs[1], path, strlen(path));
 
 	ltx_send_messages(session, msgs, 2);
 	ltx_message_reset(session);
@@ -787,7 +788,7 @@ static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 
 	struct ltx_slot *slot = session->table.slots + slot_id;
 
-	int ret = read(slot->event.fd, slot->buffer, READ_BUFFER_SIZE);
+	ssize_t ret = read(slot->event.fd, slot->buffer, READ_BUFFER_SIZE);
 	if (ret == -1) {
 		LTX_HANDLE_ERROR(session, "read() log", 1);
 		return 0;
@@ -796,15 +797,12 @@ static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 	if (!ret)
 		return 0;
 
-	/* ensure that string is null-terminated */
-	slot->buffer[ret] = '\0';
-
 	struct mp_message msgs[4];
 
 	mp_message_uint(&msgs[0], LTX_LOG);
 	mp_message_uint(&msgs[1], slot_id);
 	mp_message_uint(&msgs[2], ltx_gettime());
-	mp_message_str(&msgs[3], (char *)slot->buffer);
+	mp_message_str(&msgs[3], (char *)slot->buffer, (size_t)ret);
 
 	ltx_send_messages(session, msgs, 4);
 	ltx_message_reset(session);
