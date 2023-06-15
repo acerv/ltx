@@ -19,4 +19,10 @@ void ltx_session_destroy(struct ltx_session *session);
 /* Start the main event loop */
 void ltx_start_event_loop(struct ltx_session *session);
 
+/* Set the debug file descriptor. STDERR_FILENO is used by default */
+void ltx_set_debug_fd(struct ltx_session *session, const int fd);
+
+/* Print a warning message on debug file descriptor */
+void ltx_warning(struct ltx_session *session, const char *msg);
+
 #endif /* LTX_H */

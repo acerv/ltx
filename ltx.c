@@ -25,6 +25,7 @@
 #include <linux/limits.h> /* PATH_MAX */
 
 #include "base.h"
+#include "ltx.h"
 #include "msgpack/msgpack.h"
 
 /* maximum number of epoll events */
@@ -50,7 +51,7 @@
 
 /* Macro used to print messages */
 #ifdef DEBUG
-	#define LTX_PRINT_MESSAGE(x) mp_message_print(x, STDERR_FILENO)
+	#define LTX_PRINT_MESSAGE(x) mp_message_print(x, session->debug_fd)
 #else
 	#define LTX_PRINT_MESSAGE(x) {}
 #endif
@@ -143,6 +144,9 @@ struct ltx_session
 
 	/* stdout file descriptor */
 	int stdout_fd;
+
+	/* debug file descriptor */
+	int debug_fd;
 
 	/* epoll file descriptor */
 	int epoll_fd;
@@ -1092,6 +1096,7 @@ struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 	/* initialize file descriptors */
 	session->stdin_fd = stdin_fd;
 	session->stdout_fd = stdout_fd;
+	session->debug_fd = STDERR_FILENO;
 
 	/* reset ltx messages buffer */
 	for (unsigned i = 0; i < MAX_MESSAGES; i++)
@@ -1193,4 +1198,14 @@ void ltx_start_event_loop(struct ltx_session *session)
 			}
 		}
 	}
+}
+
+void ltx_set_debug_fd(struct ltx_session *session, const int fd)
+{
+	session->debug_fd = fd;
+}
+
+void ltx_warning(struct ltx_session *session, const char *msg)
+{
+	dprintf(session->debug_fd, "{'warning': '%s'}\n", msg);
 }
