@@ -1,6 +1,25 @@
 CC ?= gcc
 CFLAGS ?= -pedantic -W -Wall
+LDFLAGS ?= -shared -fPIC
 INCLUDES = -Imsgpack
+CFLAGS_DEBUG = -g -DDEBUG
+
+# target build configuration
+TARGET_SRCS = \
+	msgpack/message.c \
+	msgpack/unpack.c \
+	ltx.c \
+	main.c
+
+TARGET = ltx
+
+# library build configuration
+LIB_SRCS = \
+	msgpack/message.c \
+	msgpack/unpack.c \
+	ltx.c
+
+LIBRARY = libltx.so
 
 # tests build configuration
 TESTS_DEPS = \
@@ -14,24 +33,22 @@ TESTS_SRCS = \
 
 TESTS = $(TESTS_SRCS:%.c=%)
 
-# target build configuration
-TARGET_SRCS = \
-	msgpack/message.c \
-	msgpack/unpack.c \
-	ltx.c \
-	main.c
-
-TARGET = ltx
-
 # make rules
-.PHONY: $(TARGET) $(TESTS) clean debug
+.PHONY: $(TARGET) $(TESTS) clean debug shared shared-debug
 
 all: $(TARGET_SRCS)
 	$(CC) $(CFLAGS) $(INCLUDES) \
 		$(TARGET_SRCS) -o $(TARGET)
 
-debug: CFLAGS += -g -DDEBUG
+debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: all
+
+shared: $(LIB_SRCS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) \
+		$(LIB_SRCS) -o $(LIBRARY)
+
+shared-debug: CFLAGS += $(CFLAGS_DEBUG)
+shared-debug: shared
 
 test: $(TESTS)
 
@@ -41,4 +58,4 @@ $(TESTS): $(TESTS_DEPS)
 		`pkg-config --cflags --libs check`
 
 clean:
-	$(RM) $(TARGET) $(TESTS)
+	$(RM) $(TARGET) $(LIBRARY) $(TESTS)

@@ -1,4 +1,5 @@
 ltx
+libltx.so
 transport.in
 .venv
 zig-cache
