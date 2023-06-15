@@ -25,6 +25,16 @@ LTX itself just needs Clang or GCC. The tests require Python 3.7+ with
     # debug build
     make debug
 
+LTX can also be built as library in order to link its API inside a project and
+to run a custom initialization process for specific systems. This is currently
+used to [cross-compile kernel](/docs/cross.md) and to execute `ltx` as init
+process.
+
+    # libltx build
+    make shared
+    # shared debug build
+    make shared-debug
+
 For testing:
 
     # tests build
