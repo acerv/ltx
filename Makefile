@@ -18,7 +18,8 @@ TESTS = $(TESTS_SRCS:%.c=%)
 TARGET_SRCS = \
 	msgpack/message.c \
 	msgpack/unpack.c \
-	ltx.c
+	ltx.c \
+	main.c
 
 TARGET = ltx
 

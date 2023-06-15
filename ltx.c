@@ -1053,7 +1053,7 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 	} while (offset && size > (ssize_t)offset);
 }
 
-static struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
+struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 {
 	assert(stdin_fd >= 0);
 	assert(stdout_fd >= 0);
@@ -1094,7 +1094,7 @@ static struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout
 	return session;
 }
 
-static void ltx_session_destroy(struct ltx_session *session)
+void ltx_session_destroy(struct ltx_session *session)
 {
 	assert(session);
 
@@ -1104,7 +1104,7 @@ static void ltx_session_destroy(struct ltx_session *session)
 	munmap(session, sizeof(struct ltx_session));
 }
 
-static void ltx_start_event_loop(struct ltx_session *session)
+void ltx_start_event_loop(struct ltx_session *session)
 {
 	assert(session);
 
@@ -1177,19 +1177,4 @@ static void ltx_start_event_loop(struct ltx_session *session)
 			}
 		}
 	}
-}
-
-int main(void)
-{
-	struct ltx_session *session;
-
-	if (getpid() == 1) {
-		dprintf(STDERR_FILENO, "LTX is running as init!");
-	}
-
-	session = ltx_session_init(STDIN_FILENO, STDOUT_FILENO);
-	ltx_start_event_loop(session);
-	ltx_session_destroy(session);
-
-	return 0;
 }
