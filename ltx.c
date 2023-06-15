@@ -649,6 +649,27 @@ static int ltx_epoll_add(
 	return 0;
 }
 
+static void ltx_run_command(struct ltx_session *session, const char *cmd)
+{
+	int ret;
+
+	/* run with shell first */
+	ret = execlp("sh", "sh", "-c", cmd, (char *) NULL);
+	if (ret == -1 && errno != ENOENT) {
+		LTX_HANDLE_ERROR(session, "execlp() error", 1);
+		return;
+	}
+
+	/* if no shell is available, run without it */
+	ret = execlp(cmd, cmd, (char *) NULL);
+	if (ret == -1) {
+		LTX_HANDLE_ERROR(session, "execlp() error", 1);
+		return;
+	}
+
+	_exit(0);
+}
+
 static void ltx_handle_exec(struct ltx_session *session)
 {
 	/* read execution message */
@@ -751,12 +772,7 @@ static void ltx_handle_exec(struct ltx_session *session)
 	}
 
 	/* execute the command */
-	if (execlp("sh", "sh", "-c", cmd, (char *) NULL) == -1) {
-		LTX_HANDLE_ERROR(session, "execlp() error", 1);
-		exit(1);
-	}
-
-	_exit(0);
+	ltx_run_command(session, cmd);
 }
 
 static void ltx_handle_result(
