@@ -356,7 +356,7 @@ size_t mp_message_read_array_length(struct mp_message *msg)
 	return length;
 }
 
-void mp_message_print(struct mp_message *msg, FILE *file)
+void mp_message_print(struct mp_message *msg, const int fd)
 {
 	size_t size;
 	char *str;
@@ -364,7 +364,7 @@ void mp_message_print(struct mp_message *msg, FILE *file)
 	uint64_t val;
 	uint8_t *data;
 
-	fprintf(file, "{'length': '%lu', ", msg->length);
+	dprintf(fd, "{'length': '%lu', ", msg->length);
 
 	if (msg->data[0] <= MP_FIXINT127 || \
 		msg->data[0] == MP_UINT8 ||
@@ -373,7 +373,7 @@ void mp_message_print(struct mp_message *msg, FILE *file)
 		msg->data[0] == MP_UINT64)
 	{
 		val = mp_message_read_uint(msg);
-		fprintf(file, "'type': 'int', 'data': '%lu'", val);
+		dprintf(fd, "'type': 'int', 'data': '%lu'", val);
 	}
 	else if ((msg->data[0] >= MP_FIXSTR0 && msg->data[0] <= MP_FIXSTR31) || \
 		msg->data[0] == MP_STR8 ||
@@ -381,35 +381,35 @@ void mp_message_print(struct mp_message *msg, FILE *file)
 		msg->data[0] == MP_STR32)
 	{
 		str = mp_message_read_str(msg, &size);
-		fprintf(file, "'type': 'string', 'data': '");
+		dprintf(fd, "'type': 'string', 'data': '");
 		for (i = 0; i < size; i++)
-			fprintf(file, "%c", str[i]);
-		fprintf(file, "'");
+			dprintf(fd, "%c", str[i]);
+		dprintf(fd, "'");
 	}
 	else if (msg->data[0] == MP_BIN8 ||
 		msg->data[0] == MP_BIN16 ||
 		msg->data[0] == MP_BIN32)
 	{
 		data = mp_message_read_bin(msg, &size);
-		fprintf(file, "'type': 'binary', 'data': '");
+		dprintf(fd, "'type': 'binary', 'data': '");
 		for (i = 0; i < size; i++)
-			fprintf(file, "0x%x ", data[i]);
-		fprintf(file, "'");
+			dprintf(fd, "0x%x ", data[i]);
+		dprintf(fd, "'");
 	}
 	else if ((msg->data[0] >= MP_FIXARRAY0 && msg->data[0] <= MP_FIXARRAY15) || \
 		msg->data[0] == MP_ARRAY16 ||
 		msg->data[0] == MP_ARRAY32)
 	{
 		size = mp_message_read_array_length(msg);
-		fprintf(file, "'type': 'array', 'data': '%lu'", size);
+		dprintf(fd, "'type': 'array', 'data': '%lu'", size);
 	}
 	else
 	{
-		fprintf(file, "'type': 'unkown', 'data': '");
+		dprintf(fd, "'type': 'unkown', 'data': '");
 		for (i = 0; i < msg->length; i++)
-			fprintf(file, "0x%x ", msg->data[i]);
-		fprintf(file, "'");
+			dprintf(fd, "0x%x ", msg->data[i]);
+		dprintf(fd, "'");
 	}
 
-	fprintf(file, "}\n");
+	dprintf(fd, "}\n");
 }

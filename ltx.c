@@ -50,7 +50,7 @@
 
 /* Macro used to print messages */
 #ifdef DEBUG
-	#define LTX_PRINT_MESSAGE(x) mp_message_print(x, stderr)
+	#define LTX_PRINT_MESSAGE(x) mp_message_print(x, STDERR_FILENO)
 #else
 	#define LTX_PRINT_MESSAGE(x) {}
 #endif
