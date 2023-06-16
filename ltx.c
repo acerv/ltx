@@ -136,6 +136,9 @@ struct ltx_table
 
 struct ltx_session
 {
+	/* stop the session if 1 */
+	int stop;
+
 	/* current application PID */
 	pid_t pid;
 
@@ -209,7 +212,10 @@ static void ltx_send_message(
 	ssize_t pos = 0, ret;
 	do {
 		ret = write(session->stdout_fd, msg->data, msg->length);
-		assert(ret != -1);
+		if (ret == -1) {
+			session->stop = 1;
+			break;
+		}
 
 		pos += ret;
 	} while (pos < (ssize_t)msg->length);
@@ -1041,7 +1047,10 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 			LTX_HANDLE_ERROR(session, "read() error", 1);
 		return;
 	} else if (!size) {
-		LTX_HANDLE_ERROR(session, "Reached stdin EOF", 0);
+		if (errno != EPIPE)
+			LTX_HANDLE_ERROR(session, "Reached stdin EOF", 0);
+
+		session->stop = 1;
 		return;
 	}
 
@@ -1112,6 +1121,9 @@ struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 	for (unsigned i = 0; i < MAX_SLOTS; i++)
 		session->table.slots[i].pid = -1;
 
+	/* just ignore SIGPIPE and handle it via read/write */
+	signal(SIGPIPE, SIG_IGN);
+
 	return session;
 }
 
@@ -1167,7 +1179,7 @@ void ltx_start_event_loop(struct ltx_session *session)
 	int i;
 	int num;
 
-	while (1) {
+	while (!session->stop) {
 		num = epoll_wait(
 			session->epoll_fd,
 			events,
@@ -1198,6 +1210,9 @@ void ltx_start_event_loop(struct ltx_session *session)
 			}
 		}
 	}
+
+	if (session->stop)
+		ltx_warning(session, "Session has been stopped");
 }
 
 void ltx_set_debug_fd(struct ltx_session *session, const int fd)
