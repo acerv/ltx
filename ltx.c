@@ -24,7 +24,6 @@
 #include <linux/magic.h>
 #include <linux/limits.h> /* PATH_MAX */
 
-#include "base.h"
 #include "ltx.h"
 #include "msgpack/msgpack.h"
 

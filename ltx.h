@@ -7,6 +7,28 @@
 #ifndef LTX_H
 #define LTX_H
 
+/* The current LTX version */
+#define VERSION "0.1"
+
+/* ltx supported messages */
+enum
+{
+	LTX_NONE = 0xffff,
+	LTX_ERROR = 0xff,
+	LTX_VERSION = 0x00,
+	LTX_PING = 0x01,
+	LTX_PONG = 0x02,
+	LTX_GET_FILE = 0x03,
+	LTX_SET_FILE = 0x04,
+	LTX_ENV = 0x05,
+	LTX_CWD = 0x06,
+	LTX_EXEC = 0x07,
+	LTX_RESULT = 0x08,
+	LTX_LOG = 0x09,
+	LTX_DATA = 0xa0,
+	LTX_KILL = 0xa1,
+};
+
 /* ltx session abstract object to implement */
 typedef struct ltx_session ltx_session;
 
