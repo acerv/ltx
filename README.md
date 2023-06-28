@@ -25,6 +25,8 @@ LTX itself just needs Clang or GCC. The tests require Python 3.7+ with
     # debug build
     make debug
 
+## Build
+
 LTX can also be built as library in order to link its API inside a project and
 to run a custom initialization process for specific systems. This is currently
 used to [cross-compile kernel](/docs/cross.md) and to execute `ltx` as init
@@ -55,6 +57,24 @@ For testing:
 
 We can also [easily cross-compile LTX](/docs/cross.md) using `zig >=
 0.11.0`. Beware that this is an **experimental feature**.
+
+## Run inside container
+
+We provide a `Dockerfile` that can be used to run LTX inside a container.
+The container can be built and run as following:
+
+    # build docker container
+    docker build -t ltx .
+
+    # create communication pipes
+    mkfifo transport.in
+    mkfifo transport.out
+
+    # run ltx inside container
+    docker run --interactive ltx < transport.in > transport.out
+
+Now it's possible to communicate with `ltx` via `transport.in` and 
+`transport.out` pipes using `msgpack`.
 
 ## Messages
 
