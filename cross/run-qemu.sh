@@ -9,9 +9,14 @@ case $arch in
                 $Q-aarch64 -m 1G \
                            -smp 2 \
                            -display none \
+                           -machine virt -cpu cortex-a57 \
+		           -nodefaults \
+		           -device virtio-rng-pci \
+		           -device virtio-serial \
+		           -chardev pipe,id=transport,path=transport,logfile=transport.log \
+		           -device virtserialport,chardev=transport \
                            -kernel $kernel \
                            -initrd $initrd \
-                           -machine virt -cpu cortex-a57 \
                            -serial stdio \
                            -append 'console=ttyAMA0 earlyprintk=ttyAMA0';;
         *) echo "Don't recognise $arch"
