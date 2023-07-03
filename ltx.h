@@ -35,6 +35,9 @@ typedef struct ltx_session ltx_session;
 /* Initialize ltx session with specific stdin/stdout */
 struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd);
 
+/* Stop current ltx session */
+void ltx_session_stop(struct ltx_session *session);
+
 /* Destroy current ltx session */
 void ltx_session_destroy(struct ltx_session *session);
 
