@@ -86,9 +86,6 @@ enum ltx_event_type
 
 	/* received on stdout event */
 	LTX_EVT_STDOUT,
-
-	/* received on children signal event */
-	LTX_EVT_SIGNAL,
 };
 
 struct ltx_event
@@ -183,6 +180,9 @@ struct ltx_error_pos
 
 /* it's 1 when stdin/stdout pipes are broken. zero otherwise */
 static volatile int broken_pipe = 0;
+
+/* it's 1 when children completed. zero otherwise */
+static volatile int child_done = 0;
 
 static void ltx_message_reserve_next(struct ltx_session *session)
 {
@@ -1086,6 +1086,13 @@ static void ltx_broken_pipe(int signal)
 	broken_pipe = 1;
 }
 
+static void ltx_child_done(int signal)
+{
+	(void)signal;
+
+	child_done = 1;
+}
+
 struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 {
 	assert(stdin_fd >= 0);
@@ -1125,8 +1132,9 @@ struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 	for (unsigned i = 0; i < MAX_SLOTS; i++)
 		session->table.slots[i].pid = -1;
 
-	/* just ignore SIGPIPE and handle it via read/write */
+	/* handle ltx signals */
 	signal(SIGPIPE, ltx_broken_pipe);
+	signal(SIGCHLD, ltx_child_done);
 
 	return session;
 }
@@ -1160,22 +1168,6 @@ static void ltx_event_loop(struct ltx_session *session)
 	};
 	assert(!ltx_epoll_add(session, &evt_stdin, EPOLLIN));
 
-	/* setup children signals */
-	sigset_t mask;
-	assert(sigemptyset(&mask) != -1);
-	assert(sigaddset(&mask, SIGCHLD) != -1);
-	assert(sigprocmask(SIG_BLOCK, &mask, NULL) != -1);
-
-	int fd_sig = signalfd(-1, &mask, SFD_CLOEXEC);
-	assert(fd_sig != -1);
-
-	struct ltx_event evt_sig = {
-		.type = LTX_EVT_SIGNAL,
-		.fd = fd_sig,
-		.slot_id = -1,
-	};
-	assert(!ltx_epoll_add(session, &evt_sig, EPOLLIN));
-
 	/* loop through epoll events */
 	struct epoll_event events[MAX_EVENTS];
 	struct epoll_event *epoll_evt;
@@ -1190,9 +1182,14 @@ static void ltx_event_loop(struct ltx_session *session)
 			MAX_EVENTS,
 			1000);
 
-		if (num == -1) {
+		if (num == -1 && errno != EINTR) {
 			LTX_HANDLE_ERROR(session, "epoll_wait() error", 1);
 			return;
+		}
+
+		if (child_done) {
+			ltx_send_result(session);
+			child_done = 0;
 		}
 
 		for (i = 0; i < num; i++) {
@@ -1206,16 +1203,12 @@ static void ltx_event_loop(struct ltx_session *session)
 			case LTX_EVT_STDOUT:
 				ltx_handle_log(session, ltx_evt);
 				break;
-			case LTX_EVT_SIGNAL:
-				ltx_send_result(session);
-				break;
 			default:
 				break;
 			}
 		}
 	}
 
-	close(fd_sig);
 	close(session->epoll_fd);
 }
 
