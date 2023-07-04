@@ -1079,25 +1079,19 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 	} while (offset && size > (ssize_t)offset);
 }
 
-static void ltx_stop_loop(int signal)
+static void ltx_signal_handler(int signo)
 {
-	(void)signal;
-
-	stop_loop = 1;
-}
-
-static void ltx_broken_pipe(int signal)
-{
-	(void)signal;
-
-	broken_pipe = 1;
-}
-
-static void ltx_child_done(int signal)
-{
-	(void)signal;
-
-	child_done = 1;
+	switch (signo) {
+	case SIGINT:
+		stop_loop = 1;
+		break;
+	case SIGPIPE:
+		broken_pipe = 1;
+		break;
+	case SIGCHLD:
+		child_done = 1;
+		break;
+	}
 }
 
 struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
@@ -1140,9 +1134,13 @@ struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 		session->table.slots[i].pid = -1;
 
 	/* handle ltx signals */
-	signal(SIGINT, ltx_stop_loop);
-	signal(SIGPIPE, ltx_broken_pipe);
-	signal(SIGCHLD, ltx_child_done);
+	struct sigaction action;
+	memset(&action, 0, sizeof(action));
+	action.sa_handler = ltx_signal_handler;
+
+	sigaction(SIGINT, &action, NULL);
+	sigaction(SIGPIPE, &action, NULL);
+	sigaction(SIGCHLD, &action, NULL);
 
 	return session;
 }
