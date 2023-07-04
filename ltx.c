@@ -1190,6 +1190,7 @@ static void ltx_event_loop(struct ltx_session *session)
 		if (child_done) {
 			ltx_send_result(session);
 			child_done = 0;
+			continue;
 		}
 
 		for (i = 0; i < num; i++) {
@@ -1225,12 +1226,17 @@ static void ltx_handle_loop_end(struct ltx_session *session)
 
 		ret = kill(exec_slot->pid, SIGKILL);
 		if (ret == -1) {
-			assert(errno != ESRCH);
+			if (errno != ESRCH)
+				LTX_HANDLE_ERROR(session, "kill() error", 1);
+
 			ltx_slot_free(session, slot);
 			continue;
 		}
 
-		assert(waitpid(exec_slot->pid, NULL, 0) != -1);
+		ret = waitpid(exec_slot->pid, NULL, 0);
+		if (ret == -1)
+			LTX_HANDLE_ERROR(session, "waitpid() error", 1);
+
 		ltx_slot_free(session, slot);
 	}
 
