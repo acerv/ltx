@@ -1243,7 +1243,6 @@ static void ltx_handle_loop_end(struct ltx_session *session)
 	ltx_message_reset(session);
 }
 
-
 void ltx_session_stop(struct ltx_session *session)
 {
 	assert(session);
@@ -1275,5 +1274,17 @@ void ltx_set_debug_fd(struct ltx_session *session, const int fd)
 
 void ltx_warning(struct ltx_session *session, const char *msg)
 {
-	dprintf(session->debug_fd, "{'warning': '%s'}\n", msg);
+	if (strlen(msg) < 1)
+		return;
+
+	char data[MAX_STRING_LEN];
+	strncpy(data, msg, MAX_STRING_LEN);
+
+	struct mp_message msgs[2];
+
+	mp_message_uint(&msgs[0], LTX_WARNING);
+	mp_message_str(&msgs[1], data, MAX_STRING_LEN);
+
+	ltx_send_messages(session, msgs, 2);
+	ltx_message_reset(session);
 }

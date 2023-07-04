@@ -14,6 +14,7 @@
 enum
 {
 	LTX_NONE = 0xffff,
+	LTX_WARNING = 0xfff,
 	LTX_ERROR = 0xff,
 	LTX_VERSION = 0x00,
 	LTX_PING = 0x01,
