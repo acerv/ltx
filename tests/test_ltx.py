@@ -141,7 +141,7 @@ class TestLTX:
 
         yield proc
 
-        proc.kill()
+        proc.send_signal(signal.SIGINT)
 
     @pytest.fixture
     def ltx_helper(self, ltx):
