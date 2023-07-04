@@ -132,9 +132,6 @@ struct ltx_table
 
 struct ltx_session
 {
-	/* stop the session if 1 */
-	volatile int stop;
-
 	/* current application PID */
 	pid_t pid;
 
@@ -177,6 +174,9 @@ struct ltx_error_pos
 		session, \
 		str, \
 		show_errno)
+
+/* it's 1 when we want to stop the event loop. zero otherwise */
+static volatile int stop_loop = 0;
 
 /* it's 1 when stdin/stdout pipes are broken. zero otherwise */
 static volatile int broken_pipe = 0;
@@ -1079,6 +1079,13 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 	} while (offset && size > (ssize_t)offset);
 }
 
+static void ltx_stop_loop(int signal)
+{
+	(void)signal;
+
+	stop_loop = 1;
+}
+
 static void ltx_broken_pipe(int signal)
 {
 	(void)signal;
@@ -1133,6 +1140,7 @@ struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 		session->table.slots[i].pid = -1;
 
 	/* handle ltx signals */
+	signal(SIGINT, ltx_stop_loop);
 	signal(SIGPIPE, ltx_broken_pipe);
 	signal(SIGCHLD, ltx_child_done);
 
@@ -1149,6 +1157,36 @@ void ltx_session_destroy(struct ltx_session *session)
 		mp_message_destroy(session->ltx_message.data + i);
 
 	munmap(session, sizeof(struct ltx_session));
+}
+
+static void ltx_handle_loop_end(struct ltx_session *session)
+{
+	struct ltx_slot *exec_slot;
+	int slot;
+	int ret;
+
+	for (slot = 0; slot < ALL_SLOTS; slot++) {
+		exec_slot = session->table.slots + slot;
+		if (exec_slot->pid == -1)
+			continue;
+
+		ret = kill(exec_slot->pid, SIGKILL);
+		if (ret == -1) {
+			if (errno != ESRCH)
+				LTX_HANDLE_ERROR(session, "kill() error", 1);
+
+			ltx_slot_free(session, slot);
+			continue;
+		}
+
+		ret = waitpid(exec_slot->pid, NULL, 0);
+		if (ret == -1)
+			LTX_HANDLE_ERROR(session, "waitpid() error", 1);
+
+		ltx_slot_free(session, slot);
+	}
+
+	ltx_message_reset(session);
 }
 
 static void ltx_event_loop(struct ltx_session *session)
@@ -1175,7 +1213,7 @@ static void ltx_event_loop(struct ltx_session *session)
 	int i;
 	int num;
 
-	while (!(broken_pipe || session->stop)) {
+	while (!(broken_pipe || stop_loop)) {
 		num = epoll_wait(
 			session->epoll_fd,
 			events,
@@ -1210,47 +1248,19 @@ static void ltx_event_loop(struct ltx_session *session)
 		}
 	}
 
+	ltx_handle_loop_end(session);
+
+	/* at this point we can close epoll file descriptor */
 	close(session->epoll_fd);
-}
-
-static void ltx_handle_loop_end(struct ltx_session *session)
-{
-	struct ltx_slot *exec_slot;
-	int slot;
-	int ret;
-
-	for (slot = 0; slot < ALL_SLOTS; slot++) {
-		exec_slot = session->table.slots + slot;
-		if (exec_slot->pid == -1)
-			continue;
-
-		ret = kill(exec_slot->pid, SIGKILL);
-		if (ret == -1) {
-			if (errno != ESRCH)
-				LTX_HANDLE_ERROR(session, "kill() error", 1);
-
-			ltx_slot_free(session, slot);
-			continue;
-		}
-
-		ret = waitpid(exec_slot->pid, NULL, 0);
-		if (ret == -1)
-			LTX_HANDLE_ERROR(session, "waitpid() error", 1);
-
-		ltx_slot_free(session, slot);
-	}
-
-	ltx_message_reset(session);
 }
 
 void ltx_session_stop(struct ltx_session *session)
 {
 	assert(session);
 
-	session->stop = 1;
-
-	ltx_handle_loop_end(session);
-	session->stop = 0;
+	stop_loop = 1;
+	while (fcntl(session->epoll_fd, F_GETFL) != -1 || errno != EBADF) {}
+	stop_loop = 0;
 }
 
 void ltx_start_event_loop(struct ltx_session *session)
@@ -1261,10 +1271,14 @@ void ltx_start_event_loop(struct ltx_session *session)
 		ltx_event_loop(session);
 
 		if (broken_pipe) {
-			ltx_handle_loop_end(session);
+			ltx_warning(
+				session,
+				"Broken pipe. Restarting the event loop");
 			broken_pipe = 0;
 		}
-	} while (!session->stop);
+	} while (!stop_loop);
+
+	ltx_warning(session, "Event loop has been stopped");
 }
 
 void ltx_set_debug_fd(struct ltx_session *session, const int fd)
@@ -1277,13 +1291,18 @@ void ltx_warning(struct ltx_session *session, const char *msg)
 	if (strlen(msg) < 1)
 		return;
 
-	char data[MAX_STRING_LEN];
-	strncpy(data, msg, MAX_STRING_LEN);
+	size_t len = strlen(msg);
+
+	if (len > MAX_STRING_LEN)
+		len = MAX_STRING_LEN;
+
+	char data[len];
+	strncpy(data, msg, len);
 
 	struct mp_message msgs[2];
 
 	mp_message_uint(&msgs[0], LTX_WARNING);
-	mp_message_str(&msgs[1], data, MAX_STRING_LEN);
+	mp_message_str(&msgs[1], data, len);
 
 	ltx_send_messages(session, msgs, 2);
 	ltx_message_reset(session);
