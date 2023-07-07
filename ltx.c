@@ -33,6 +33,9 @@
 /* maximum number of msgpack messages per ltx message */
 #define MAX_MESSAGES 5
 
+/* set when no slots are assigned */
+#define SLOT_NONE 0xffff
+
 /* maximum number of slots to execute commands */
 #define MAX_SLOTS 128
 
@@ -1200,7 +1203,7 @@ static void ltx_event_loop(struct ltx_session *session)
 	struct ltx_event evt_stdin = {
 		.type = LTX_EVT_STDIN,
 		.fd = session->stdin_fd,
-		.slot_id = -1,
+		.slot_id = SLOT_NONE,
 	};
 	assert(!ltx_epoll_add(session, &evt_stdin, EPOLLIN));
 
@@ -1233,6 +1236,20 @@ static void ltx_event_loop(struct ltx_session *session)
 			epoll_evt = events + i;
 			ltx_evt = (struct ltx_event *) epoll_evt->data.ptr;
 
+			if (epoll_evt->events & EPOLLERR) {
+				char* msg;
+				int ret = asprintf(
+					&msg,
+					"Catched EPOLLERR when polling %d file descriptor",
+					ltx_evt->fd);
+				assert(ret >= 0);
+
+				LTX_HANDLE_ERROR(session, msg, 0);
+				free(msg);
+
+				goto exit;
+			}
+
 			switch (ltx_evt->type) {
 			case LTX_EVT_STDIN:
 				ltx_read_stdin(session, ltx_evt);
@@ -1246,6 +1263,7 @@ static void ltx_event_loop(struct ltx_session *session)
 		}
 	}
 
+exit:
 	ltx_handle_loop_end(session);
 
 	/* at this point we can close epoll file descriptor */
