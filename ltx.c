@@ -819,7 +819,9 @@ static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 
 	ssize_t ret = read(slot->event.fd, slot->buffer, READ_BUFFER_SIZE);
 	if (ret == -1) {
-		LTX_HANDLE_ERROR(session, "read() log", 1);
+		if (errno != EAGAIN && errno != EWOULDBLOCK)
+			LTX_HANDLE_ERROR(session, "read() log", 1);
+
 		return 0;
 	}
 
@@ -1038,7 +1040,7 @@ static void ltx_process_msg(struct ltx_session *session)
 		ltx_message_reserve_next(session);
 }
 
-static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
+static int ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 {
 	ssize_t size = read(
 		evt->fd,
@@ -1046,13 +1048,14 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 		READ_BUFFER_SIZE);
 
 	if (size == -1) {
-		if (errno != EAGAIN)
+		if (errno != EAGAIN && errno != EWOULDBLOCK)
 			LTX_HANDLE_ERROR(session, "read() error", 1);
-		return;
+
+		return 0;
 	}
 
 	if (!size)
-		return;
+		return 0;
 
 	int status;
 	size_t offset = 0;
@@ -1080,6 +1083,8 @@ static void ltx_read_stdin(struct ltx_session *session, struct ltx_event *evt)
 			break;
 		}
 	} while (offset && size > (ssize_t)offset);
+
+	return 1;
 }
 
 static void ltx_signal_handler(int signo)
@@ -1205,7 +1210,9 @@ static void ltx_event_loop(struct ltx_session *session)
 		.fd = session->stdin_fd,
 		.slot_id = SLOT_NONE,
 	};
-	assert(!ltx_epoll_add(session, &evt_stdin, EPOLLIN));
+
+	assert(fcntl(session->stdin_fd, F_SETFL, O_NONBLOCK) != -1);
+	assert(!ltx_epoll_add(session, &evt_stdin, EPOLLIN | EPOLLET));
 
 	/* loop through epoll events */
 	struct epoll_event events[MAX_EVENTS];
@@ -1223,7 +1230,7 @@ static void ltx_event_loop(struct ltx_session *session)
 
 		if (num == -1 && errno != EINTR) {
 			LTX_HANDLE_ERROR(session, "epoll_wait() error", 1);
-			return;
+			goto exit;
 		}
 
 		if (child_done) {
@@ -1252,7 +1259,8 @@ static void ltx_event_loop(struct ltx_session *session)
 
 			switch (ltx_evt->type) {
 			case LTX_EVT_STDIN:
-				ltx_read_stdin(session, ltx_evt);
+				while (ltx_read_stdin(session, ltx_evt))
+					;
 				break;
 			case LTX_EVT_STDOUT:
 				ltx_handle_log(session, ltx_evt);
