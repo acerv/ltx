@@ -184,9 +184,6 @@ static volatile int stop_loop = 0;
 /* it's 1 when stdin/stdout pipes are broken. zero otherwise */
 static volatile int broken_pipe = 0;
 
-/* it's 1 when children completed. zero otherwise */
-static volatile int child_done = 0;
-
 static void ltx_message_reserve_next(struct ltx_session *session)
 {
 	++(session->ltx_message.curr);
@@ -819,7 +816,7 @@ static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 
 	ssize_t ret = read(slot->event.fd, slot->buffer, READ_BUFFER_SIZE);
 	if (ret == -1) {
-		if (errno != EAGAIN && errno != EWOULDBLOCK)
+		if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
 			LTX_HANDLE_ERROR(session, "read() log", 1);
 
 		return 0;
@@ -841,7 +838,7 @@ static int ltx_check_stdout(struct ltx_session *session, const int slot_id)
 	return 1;
 }
 
-static void ltx_send_result(struct ltx_session *session)
+static void ltx_slots_waitpid(struct ltx_session *session)
 {
 	struct ltx_slot *slot;
 	uint64_t slot_id;
@@ -1096,9 +1093,6 @@ static void ltx_signal_handler(int signo)
 	case SIGPIPE:
 		broken_pipe = 1;
 		break;
-	case SIGCHLD:
-		child_done = 1;
-		break;
 	}
 }
 
@@ -1148,7 +1142,6 @@ struct ltx_session *ltx_session_init(const int stdin_fd, const int stdout_fd)
 
 	sigaction(SIGINT, &action, NULL);
 	sigaction(SIGPIPE, &action, NULL);
-	sigaction(SIGCHLD, &action, NULL);
 
 	return session;
 }
@@ -1233,12 +1226,6 @@ static void ltx_event_loop(struct ltx_session *session)
 			goto exit;
 		}
 
-		if (child_done) {
-			ltx_send_result(session);
-			child_done = 0;
-			continue;
-		}
-
 		for (i = 0; i < num; i++) {
 			epoll_evt = events + i;
 			ltx_evt = (struct ltx_event *) epoll_evt->data.ptr;
@@ -1269,6 +1256,8 @@ static void ltx_event_loop(struct ltx_session *session)
 				break;
 			}
 		}
+
+		ltx_slots_waitpid(session);
 	}
 
 exit:
