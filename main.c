@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 		case 'h':
 		default:
 			printf(
-				"Usage: ./ltx [-s|-v|-h]\n\n"
+				"Usage: ltx [-s|-v|-h]\n\n"
 				"  -s | --serial       communicate via serial port\n"
 				"  -v | --version      print version\n"
 				"  -h | --help         print help message\n\n"
