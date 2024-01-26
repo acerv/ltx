@@ -28,9 +28,7 @@ LTX itself just needs Clang or GCC. The tests require Python 3.7+ with
 ## Build
 
 LTX can also be built as library in order to link its API inside a project and
-to run a custom initialization process for specific systems. This is currently
-used to [cross-compile kernel](/docs/cross.md) and to execute `ltx` as init
-process.
+to run a custom initialization process for specific systems, such as `initrd`.
 
     # libltx build
     make shared
@@ -54,9 +52,6 @@ For testing:
 
     # execute LTX communication tests
     pytest -v tests/test_ltx.py
-
-We can also [easily cross-compile LTX](/docs/cross.md) using `zig >=
-0.11.0`. Beware that this is an **experimental feature**.
 
 ## Run inside container
 
