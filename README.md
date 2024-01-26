@@ -18,32 +18,26 @@ of LTX.
 ## Dependencies
 
 LTX itself just needs Clang or GCC. The tests require Python 3.7+ with
-`pytest` and `msgpack`. To build LTX, we can use `make` command:
+`pytest` and `msgpack`. To build LTX, we can use `meson` command:
+
+    # create build folder
+    meson setup build
+    cd build
 
     # regular build
-    make
+    meson configure --buildtype=release
     # debug build
-    make debug
+    meson configure --buildtype=debug
 
-## Build
+    # compile binary
+    meson compile
 
-LTX can also be built as library in order to link its API inside a project and
-to run a custom initialization process for specific systems, such as `initrd`.
-
-    # libltx build
-    make shared
-    # shared debug build
-    make shared-debug
+## Testing
 
 For testing:
 
-    # tests build
-    make test
-
-    # execute tests
-    ./tests/test_utils
-    ./tests/test_message
-    ./tests/test_unpack
+    # tests execution
+    meson test
 
     # install python 3.7+ dependences
     virtualenv .venv
@@ -52,24 +46,6 @@ For testing:
 
     # execute LTX communication tests
     pytest -v tests/test_ltx.py
-
-## Run inside container
-
-We provide a `Dockerfile` that can be used to run LTX inside a container.
-The container can be built and run as following:
-
-    # build docker container
-    docker build -t ltx .
-
-    # create communication pipes
-    mkfifo transport.in
-    mkfifo transport.out
-
-    # run ltx inside container
-    docker run --interactive ltx < transport.in > transport.out
-
-Now it's possible to communicate with `ltx` via `transport.in` and 
-`transport.out` pipes using `msgpack`.
 
 ## Messages
 

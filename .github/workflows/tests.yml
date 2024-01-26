@@ -17,29 +17,20 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential check python3-pip
-        python3 -m pip install pytest msgpack
+        sudo apt-get install -y build-essential check python3-pip ninja-build
+        python3 -m pip install pytest msgpack meson
 
-    - name: Build binray
-      run: make
-
-    - name: Build library
-      run: make shared
-
-    - name: Build tests
+    - name: Build
       run: |
-        gcc --version
-        make --version
-        make test
+        meson setup build
+        cd build
+        meson compile
 
-    - name: Test utils
-      run: ./tests/test_utils
-
-    - name: Test unpack
-      run: ./tests/test_unpack
-
-    - name: Test message
-      run: ./tests/test_message
+    - name: Test
+      run: |
+        cd build
+        meson configure -D build_tests=true
+        meson test
 
     - name: Test LTX
       run: python3 -m pytest -v tests/test_ltx.py
