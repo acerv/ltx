@@ -735,10 +735,13 @@ static void ltx_handle_exec(struct ltx_session *session)
 
 	/* setup parent */
 	if (pid) {
+		setpgid(pid, pid);
 		close(pipefd[1]);
 		exec_slot->pid = pid;
 		return;
 	}
+
+	setpgid(0, 0);
 
 	/* redirect stdout to pipe */
 	if (dup2(pipefd[1], STDOUT_FILENO) == -1) {
@@ -915,7 +918,7 @@ static void ltx_handle_kill(struct ltx_session *session)
 	if (exec_slot->pid == -1)
 		return;
 
-	int ret = kill(exec_slot->pid, SIGKILL);
+	int ret = kill(-exec_slot->pid, SIGKILL);
 	if (ret == -1 && errno != ESRCH) {
 		LTX_HANDLE_ERROR(session, "kill() error", 1);
 		return;
