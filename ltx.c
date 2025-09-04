@@ -228,6 +228,8 @@ static void ltx_send_message(
 
 		pos += ret;
 	} while (pos < (ssize_t)msg->length);
+
+	mp_message_destroy(msg);
 }
 
 static void ltx_send_messages(
@@ -235,6 +237,10 @@ static void ltx_send_messages(
 	struct mp_message *const msgs,
 	const int count)
 {
+	assert(session);
+	assert(msgs);
+	assert(count > 0);
+
 	struct mp_message msg;
 
 	mp_message_array(&msg, count);
@@ -242,6 +248,8 @@ static void ltx_send_messages(
 
 	for (int i = 0; i < count; i++)
 		ltx_send_message(session, msgs + i);
+
+	mp_message_destroy(&msg);
 }
 
 static void ltx_echo(struct ltx_session *session)
